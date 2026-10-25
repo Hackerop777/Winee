@@ -1,0 +1,23 @@
+# Build and Dependencies
+target/
+**/target/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.pnpm-store/
+**/.pnpm-store/
+
+# WebView2 and Runtime Data
+.webview_data/
+**/.webview_data/
+
+# Temporary Extraction Data
+extracted_frames/
+Opie.dmg
+*.log
+
+# System & OS Files
+Thumbs.db
+[Ee]xternal/
+.DS_Store
