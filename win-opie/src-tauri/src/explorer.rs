@@ -1,22 +1,37 @@
 use std::path::Path;
 use windows::core::Interface;
-use windows::Win32::Foundation::MAX_PATH;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoTaskMemFree, IServiceProvider, CLSCTX_ALL,
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IServiceProvider, CLSCTX_ALL,
     COINIT_APARTMENTTHREADED,
 };
-use windows::Win32::System::DataExchange::{
-    CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
-};
-use windows::Win32::System::Ole::CF_HDROP;
 use windows::Win32::UI::Shell::{
-    DragQueryFileW, HDROP, IFolderView, IShellBrowser, IShellItemArray,
-    IShellWindows, ShellWindows, ShellWindowFindWindowOptions, ShellWindowTypeConstants,
+    IFolderView, IShellBrowser, IShellItemArray, IShellWindows,
+    ShellWindows, ShellWindowFindWindowOptions, ShellWindowTypeConstants,
     SID_STopLevelBrowser, SIGDN_FILESYSPATH, SVGIO_SELECTION, SWC_DESKTOP, SWFO_NEEDDISPATCH,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     GetAncestor, GetClassNameW, GetForegroundWindow, GA_ROOT,
 };
+
+/// RAII Scope guard to ensure every successful CoInitializeEx has a matching CoUninitialize call.
+struct ComGuard(bool);
+
+impl ComGuard {
+    fn new() -> Self {
+        let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
+        Self(hr.is_ok())
+    }
+}
+
+impl Drop for ComGuard {
+    fn drop(&mut self) {
+        if self.0 {
+            unsafe {
+                CoUninitialize();
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectionContext {
@@ -32,33 +47,56 @@ pub fn get_selected_files_and_context() -> (SelectionContext, Vec<String>) {
         return (SelectionContext::Default, files);
     }
 
-    if let Some(first) = files.first() {
-        let path = Path::new(first);
-        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-            let ext_lower = ext.to_lowercase();
-            match ext_lower.as_str() {
-                "png" | "jpg" | "jpeg" | "webp" | "heic" | "bmp" | "avif" | "ico" => {
-                    return (SelectionContext::Image(files.clone()), files);
-                }
-                "mp4" | "mov" | "mkv" | "webm" | "avi" => {
-                    return (SelectionContext::Video(files.clone()), files);
-                }
-                "mp3" | "wav" | "flac" | "aac" | "m4a" | "ogg" => {
-                    return (SelectionContext::Audio(files.clone()), files);
-                }
-                _ => {}
+    // Verify all selected files match the same category to prevent invalid actions on mixed selections
+    let mut has_image = false;
+    let mut has_video = false;
+    let mut has_audio = false;
+    let mut has_other = false;
+
+    for f in &files {
+        let path = Path::new(f);
+        let ext_lower = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+
+        match ext_lower.as_str() {
+            "png" | "jpg" | "jpeg" | "webp" | "heic" | "bmp" | "avif" | "ico" => {
+                has_image = true;
+            }
+            "mp4" | "mov" | "mkv" | "webm" | "avi" => {
+                has_video = true;
+            }
+            "mp3" | "wav" | "flac" | "aac" | "m4a" | "ogg" => {
+                has_audio = true;
+            }
+            _ => {
+                has_other = true;
             }
         }
     }
 
+    // Strict homogeneous classification:
+    if has_image && !has_video && !has_audio && !has_other {
+        return (SelectionContext::Image(files.clone()), files);
+    }
+    if has_video && !has_image && !has_audio && !has_other {
+        return (SelectionContext::Video(files.clone()), files);
+    }
+    if has_audio && !has_image && !has_video && !has_other {
+        return (SelectionContext::Audio(files.clone()), files);
+    }
+
+    // Mixed selection or arbitrary documents: safe Default context
     (SelectionContext::Default, files)
 }
 
-/// Discovers selected files directly from Windows Explorer or Desktop via Shell COM interfaces.
-/// Falls back to clipboard CF_HDROP only if COM selection is empty and window is an Explorer instance.
+/// Discovers selected files directly and authoritatively from Windows Explorer or Desktop via Shell COM.
+/// No clipboard fallback is used, preventing ghost or stale selections from past copy operations.
 pub fn get_selected_explorer_files() -> Vec<String> {
     unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let _guard = ComGuard::new();
 
         let fg_hwnd = GetForegroundWindow();
         if fg_hwnd.0.is_null() {
@@ -78,7 +116,7 @@ pub fn get_selected_explorer_files() -> Vec<String> {
 
         let mut selected_files = Vec::new();
 
-        // 1. Primary: Windows Shell COM Discovery
+        // Windows Shell COM Discovery
         if let Ok(shell_windows) = CoCreateInstance::<_, IShellWindows>(&ShellWindows, None, CLSCTX_ALL) {
             if is_desktop {
                 // Desktop selection via FindWindowSW
@@ -130,29 +168,6 @@ pub fn get_selected_explorer_files() -> Vec<String> {
                         }
                     }
                 }
-            }
-        }
-
-        // 2. Strict Fallback: Clipboard CF_HDROP only if Shell COM returned nothing
-        if selected_files.is_empty() && (is_folder_window || is_desktop) {
-            if OpenClipboard(None).is_ok() {
-                if IsClipboardFormatAvailable(CF_HDROP.0.into()).is_ok() {
-                    if let Ok(handle) = GetClipboardData(CF_HDROP.0.into()) {
-                        let hdrop = HDROP(handle.0 as *mut _);
-                        let file_count = DragQueryFileW(hdrop, 0xFFFFFFFF, None);
-                        for i in 0..file_count {
-                            let mut buf = [0u16; MAX_PATH as usize];
-                            let written = DragQueryFileW(hdrop, i, Some(&mut buf));
-                            if written > 0 {
-                                let path_str = String::from_utf16_lossy(&buf[..written as usize]);
-                                if Path::new(&path_str).exists() {
-                                    selected_files.push(path_str);
-                                }
-                            }
-                        }
-                    }
-                }
-                let _ = CloseClipboard();
             }
         }
 

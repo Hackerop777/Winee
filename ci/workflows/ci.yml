@@ -1,0 +1,69 @@
+name: CI Build & Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build & Verify Windows Package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo and Node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            win-opie/target/
+            win-opie/node_modules/
+          key: ${{ runner.os }}-winee-${{ hashFiles('win-opie/pnpm-lock.yaml', 'win-opie/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-winee-
+
+      - name: Install Frontend Dependencies
+        working-directory: win-opie
+        run: pnpm install
+
+      - name: Verify TypeScript & Frontend Build
+        working-directory: win-opie
+        run: pnpm run build
+
+      - name: Rust Check & Tests
+        working-directory: win-opie/src-tauri
+        run: |
+          cargo check
+          cargo test --verbose
+
+      - name: Build Tauri NSIS Release Installer
+        working-directory: win-opie
+        run: pnpm tauri build -b nsis
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WINEE_Installer_x64
+          path: win-opie/src-tauri/target/release/bundle/nsis/*.exe

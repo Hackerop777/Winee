@@ -53,6 +53,17 @@ fn get_autostart() -> bool {
 }
 
 #[tauri::command]
+fn set_shortcut_preference(shortcut: String) -> Result<(), String> {
+    hooks::set_preferred_shortcut(shortcut);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_shortcut_preference() -> String {
+    hooks::get_preferred_shortcut()
+}
+
+#[tauri::command]
 fn hide_window(window: tauri::WebviewWindow) {
     let _ = window.hide();
 }
@@ -307,6 +318,8 @@ pub fn run() {
             execute_radial_action,
             set_autostart,
             get_autostart,
+            set_shortcut_preference,
+            get_shortcut_preference,
             hide_window
         ])
         .run(tauri::generate_context!())

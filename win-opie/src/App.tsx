@@ -88,6 +88,13 @@ export const App: React.FC = () => {
 
   const currentTheme = THEMES[settings.themeId || "crystal"] || THEMES.crystal;
 
+  // Synchronize OS-level registered hotkey with user settings
+  useEffect(() => {
+    if (settings.shortcut) {
+      invoke("set_shortcut_preference", { shortcut: settings.shortcut }).catch(console.error);
+    }
+  }, [settings.shortcut]);
+
   // Polar coordinate tracking with custom deadzone
   const { polar, updateCoords, resetCoords } = usePolarCoords(settings.deadzoneRadius || 64);
 
@@ -167,16 +174,25 @@ export const App: React.FC = () => {
 
   const handleSelectSlice = useCallback(
     async (index: number, actionId?: string) => {
+      // Resolve action ID if not passed explicitly (gesture dispatch or legacy call)
+      const effectiveActionId =
+        actionId !== undefined
+          ? actionId
+          : mode === "default"
+          ? (settings.customSlots && settings.customSlots[index]) || DEFAULT_WHEEL_SLOTS[index] || "none"
+          : undefined;
+
+      if (effectiveActionId === "none") {
+        handleClose();
+        return;
+      }
+
       if (settings.soundEnabled) {
         sounds.play("button-press.wav", 0.6);
       }
 
-      if (actionId === "none") {
-        return;
-      }
-
       // If Settings action: open settings modal!
-      if (actionId === "settings" || (mode === "default" && index === 7 && !actionId)) {
+      if (effectiveActionId === "settings" || (mode === "default" && index === 7 && !effectiveActionId)) {
         setIsOpen(false);
         setIsSettingsOpen(true);
         resetCoords();
@@ -191,7 +207,7 @@ export const App: React.FC = () => {
           mode,
           index,
           files,
-          actionId: actionId || null,
+          actionId: effectiveActionId || null,
         });
       } catch (err) {
         console.error("Action execution error:", err);
@@ -201,7 +217,7 @@ export const App: React.FC = () => {
         } catch (_) {}
       }
     },
-    [mode, files, resetCoords, settings.soundEnabled]
+    [mode, files, resetCoords, settings.soundEnabled, settings.customSlots, handleClose]
   );
 
   // Listen to Tauri events from Win32 backend
@@ -243,7 +259,12 @@ export const App: React.FC = () => {
     });
 
     const unlistenDispatch = listen<number>("opie-dispatch", (event) => {
-      handleSelectSlice(event.payload);
+      const idx = event.payload;
+      const customActionId =
+        mode === "default"
+          ? (settings.customSlots && settings.customSlots[idx]) || DEFAULT_WHEEL_SLOTS[idx] || "none"
+          : undefined;
+      handleSelectSlice(idx, customActionId);
     });
 
     const handleKeyDown = (e: KeyboardEvent) => {

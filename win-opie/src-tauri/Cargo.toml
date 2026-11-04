@@ -1,6 +1,6 @@
 [package]
 name = "win-opie"
-version = "1.4.0"
+version = "1.4.1"
 description = "Native Windows 11 replica of Opie radial utility"
 authors = ["WinOpie Team"]
 edition = "2021"

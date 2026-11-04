@@ -20,6 +20,26 @@ use crate::media::get_current_media_state;
 static IS_TRIGGERED: AtomicBool = AtomicBool::new(false);
 static SPAWN_POINT: Mutex<Option<(i32, i32)>> = Mutex::new(None);
 static APP_HANDLE: Mutex<Option<AppHandle>> = Mutex::new(None);
+static PREFERRED_SHORTCUT: Mutex<String> = Mutex::new(String::new());
+
+pub fn set_preferred_shortcut(shortcut: String) {
+    if let Ok(mut lock) = PREFERRED_SHORTCUT.lock() {
+        *lock = shortcut;
+    }
+}
+
+pub fn get_preferred_shortcut() -> String {
+    PREFERRED_SHORTCUT
+        .lock()
+        .map(|s| {
+            if s.is_empty() {
+                "Ctrl+Space".to_string()
+            } else {
+                s.clone()
+            }
+        })
+        .unwrap_or_else(|_| "Ctrl+Space".to_string())
+}
 
 #[derive(serde::Serialize, Clone, Debug)]
 pub struct ShowPayload {
@@ -37,7 +57,7 @@ pub struct ShowPayload {
 pub fn start_input_hook(app: AppHandle) {
     *APP_HANDLE.lock().unwrap() = Some(app);
 
-    // 1. Thread 1: Register OS-level Windows Hotkeys (Ctrl+Space, Alt+O, Ctrl+Alt+Space)
+    // 1. Thread 1: Register OS-level Windows Hotkeys
     std::thread::spawn(|| unsafe {
         // RegisterHotKey IDs:
         // 10: Ctrl + Space (Primary)
@@ -46,11 +66,24 @@ pub fn start_input_hook(app: AppHandle) {
         let _ = RegisterHotKey(None, 11, HOT_KEY_MODIFIERS(MOD_ALT.0 | MOD_NOREPEAT.0), b'O' as u32);
         // 12: Ctrl + Alt + Space
         let _ = RegisterHotKey(None, 12, HOT_KEY_MODIFIERS(MOD_CONTROL.0 | MOD_ALT.0 | MOD_NOREPEAT.0), VK_SPACE.0 as u32);
+        // 13: Alt + Space
+        let _ = RegisterHotKey(None, 13, HOT_KEY_MODIFIERS(MOD_ALT.0 | MOD_NOREPEAT.0), VK_SPACE.0 as u32);
 
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
             if msg.message == WM_HOTKEY {
-                trigger_show_radial();
+                let id = msg.wParam.0 as i32;
+                let pref = get_preferred_shortcut();
+                let matches = match id {
+                    10 => pref == "Ctrl+Space" || pref.is_empty(),
+                    11 => pref == "Alt+O",
+                    12 => pref == "Ctrl+Alt+Space",
+                    13 => pref == "Alt+Space",
+                    _ => false,
+                };
+                if matches {
+                    trigger_show_radial();
+                }
             }
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
@@ -59,50 +92,56 @@ pub fn start_input_hook(app: AppHandle) {
         let _ = UnregisterHotKey(None, 10);
         let _ = UnregisterHotKey(None, 11);
         let _ = UnregisterHotKey(None, 12);
+        let _ = UnregisterHotKey(None, 13);
     });
 
-    // 2. Thread 2: Lightweight hardware input poller (~60Hz, negligible power widget mode)
-    // Listens for Ctrl + Space, Alt + O, and Middle Mouse Button across any application
+    // 2. Thread 2: Lightweight hardware input poller
     std::thread::spawn(|| unsafe {
-        // Query initial states before loop to prevent false trigger on launch
-        let mut last_ctrl_space = ((GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0)
-            && ((GetAsyncKeyState(VK_SPACE.0 as i32) as u16 & 0x8000) != 0);
-        let mut last_alt_o = ((GetAsyncKeyState(VK_MENU.0 as i32) as u16 & 0x8000) != 0)
-            && ((GetAsyncKeyState(b'O' as i32) as u16 & 0x8000) != 0);
-        let mut last_mbutton = (GetAsyncKeyState(VK_MBUTTON.0 as i32) as u16 & 0x8000) != 0;
+        let mut last_combo_active = false;
+        let mut last_mbutton = false;
 
         loop {
+            let pref = get_preferred_shortcut();
+            let pref_str = if pref.is_empty() { "Ctrl+Space" } else { pref.as_str() };
+
             let ctrl_down = (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0;
             let space_down = (GetAsyncKeyState(VK_SPACE.0 as i32) as u16 & 0x8000) != 0;
             let alt_down = (GetAsyncKeyState(VK_MENU.0 as i32) as u16 & 0x8000) != 0;
             let o_down = (GetAsyncKeyState(b'O' as i32) as u16 & 0x8000) != 0;
             let mbutton_down = (GetAsyncKeyState(VK_MBUTTON.0 as i32) as u16 & 0x8000) != 0;
 
-            let is_ctrl_space = ctrl_down && space_down;
-            let is_alt_o = alt_down && o_down;
+            let (combo_active, modifier_held) = match pref_str {
+                "Alt+O" => (alt_down && o_down, alt_down),
+                "Ctrl+Alt+Space" => (ctrl_down && alt_down && space_down, ctrl_down || alt_down),
+                "Alt+Space" => (alt_down && space_down && !ctrl_down, alt_down),
+                "MiddleButton" => (false, false),
+                _ => (ctrl_down && space_down && !alt_down, ctrl_down),
+            };
 
             // Trigger on KeyDown
-            if is_ctrl_space && !last_ctrl_space {
+            if combo_active && !last_combo_active {
                 if !IS_TRIGGERED.load(Ordering::SeqCst) {
                     trigger_show_radial();
                 }
-            } else if !ctrl_down && last_ctrl_space {
-                // If Ctrl was released while holding
+            } else if !modifier_held && last_combo_active {
+                // If modifier was released while holding
                 if IS_TRIGGERED.load(Ordering::SeqCst) {
                     on_modifier_released();
                 }
             }
-            last_ctrl_space = is_ctrl_space;
-
-            if is_alt_o && !last_alt_o {
-                if !IS_TRIGGERED.load(Ordering::SeqCst) {
-                    trigger_show_radial();
-                }
-            }
-            last_alt_o = is_alt_o;
+            last_combo_active = combo_active;
 
             // Middle Mouse Button toggle
-            if mbutton_down && !last_mbutton {
+            if pref_str == "MiddleButton" {
+                if mbutton_down && !last_mbutton {
+                    if IS_TRIGGERED.load(Ordering::SeqCst) {
+                        trigger_hide_radial();
+                    } else {
+                        trigger_show_radial();
+                    }
+                }
+            } else if mbutton_down && !last_mbutton {
+                // Auxiliary toggle
                 if IS_TRIGGERED.load(Ordering::SeqCst) {
                     trigger_hide_radial();
                 } else {
@@ -113,12 +152,12 @@ pub fn start_input_hook(app: AppHandle) {
 
             // Dynamic adaptive frequency:
             // When radial wheel is active, sample at high responsiveness (12ms / ~80Hz) to track release.
-            // When idle, sleep 120ms (purely idle state, saving CPU cycles while RegisterHotKey handles instant key triggers).
+            // When idle, sleep 100ms (purely idle state, saving CPU cycles while RegisterHotKey handles instant key triggers).
             let is_active = IS_TRIGGERED.load(Ordering::SeqCst);
             let sleep_duration = if is_active {
                 Duration::from_millis(12)
             } else {
-                Duration::from_millis(120)
+                Duration::from_millis(100)
             };
             std::thread::sleep(sleep_duration);
         }

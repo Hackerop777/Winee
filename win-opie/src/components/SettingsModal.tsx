@@ -675,7 +675,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {activeTab === "about" && (
               <div className="space-y-3 text-xs leading-relaxed text-neutral-300">
                 <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/20 text-sky-300">
-                  <div className="font-bold text-sm text-sky-200">WINEE v1.4.0</div>
+                  <div className="font-bold text-sm text-sky-200">WINEE v1.4.1</div>
                   <div className="text-[11px] text-sky-400/90 mt-0.5">
                     Independent Native Windows 11 Fluid Radial Action Utility
                   </div>

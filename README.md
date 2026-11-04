@@ -17,25 +17,30 @@
 
 ---
 
-## Key Features
+## Key Features in v1.4.1
 
-- **Continuous Translucent Glass Disc**: Unified circular glass surface with fine hairline sector separators.
-- **$C^1$-Continuous Fluid Droplet Bulge**: Active wedges expand outward with a mathematically smooth liquid teardrop shape.
-- **Luminous Center Hub**: Dynamic action label typography with an inner neon-bloom halo.
-- **Contextual Action Bubbles**: Secondary action buttons orbit smoothly outward along the sector trajectory.
-- **Dual Visual Themes**:
-  - **Warm Coral Glass**: Reference sunset amber/peach aesthetic with golden active accents.
-  - **Cool Graphite Glass**: Windows 11 Fluent slate/ice blue aesthetic with cyan luminous bloom.
-- **Everyday Radial Tools**:
-  - Media Play / Pause, Skip Next, Skip Previous (WinRT media session controls)
-  - Windows Screen Snip (`ms-screenclip:`)
-  - Quick Notepad Scratchpad
-  - System Audio Mute (`IAudioEndpointVolume`)
-  - Clipboard History (`Win + V`)
-  - Full Settings & Preferences Window
-- **Context-Aware File Actions**: Automatic detection of selected files in Windows Explorer for in-memory image conversion (PNG, JPG, WEBP, ICO, BMP) and media operations.
-- **Zero-Power Idle Footprint**: Detaches from DWM queue when closed; consumes `< 0.02%` CPU when inactive.
-- **Tactile Audio Feedback**: 100% offline Web Audio API synthesized clicks, wood knocks, and metallic ticks.
+- **Fully Customizable Wheel Slices**:
+  - Re-order, swap, or disable any of the 8 radial slices.
+  - Built-in profiles: *Default Everyday*, *Dev & Power User*, and *Media Minimal*.
+  - Extensive action catalog: Media controls, Volume/Mute, Snipping Tool, Quick Note, Clipboard History, Default Browser, Windows Terminal, File Explorer, Task Manager, Lock PC, Settings, and Empty/Disabled slots.
+- **Gesture & Flick Dispatch**:
+  - Hold hotkey, flick towards a wedge, and release modifier to trigger in under 50ms.
+  - Native gesture dispatch directly resolves user-customized action slots.
+- **Dual Physical Glass Engines**:
+  - **Liquid Glass**: SVG fractal noise turbulence `#lg-dist` with real-time displacement mapping and 3D specular highlight bevels.
+  - **Frosted Glass**: Velvet diffusion blur with dual-direction inset rims and elliptical radial sheen.
+  - **Uncapped Blur Customization**: Full 0–100px range slider support.
+- **Dynamic OS Hotkey Binding**:
+  - Live synchronization between Settings shortcut preferences and native Windows `RegisterHotKey` / hardware polling.
+  - Supported triggers: `Ctrl + Space`, `Alt + O`, `Ctrl + Alt + Space`, `Alt + Space`, and `Middle Mouse Button`.
+- **Authoritative Windows Explorer Integration**:
+  - Direct Shell COM discovery (`IShellWindows`, `IFolderView`, `IShellItemArray`) with RAII COM lifecycle management (`CoUninitialize`).
+  - Purged stale clipboard fallbacks for 100% authoritative file selection.
+  - Mixed-selection safety: guarantees batch actions are only presented on homogeneous file selections.
+- **Zero-Power Idle Footprint**:
+  - Detaches from DWM queue when closed; consumes `< 0.02%` CPU when inactive.
+- **Tactile Audio Feedback**:
+  - 100% offline Web Audio API synthesized clicks, wood knocks, and metallic ticks.
 
 ---
 
@@ -43,7 +48,7 @@
 
 | Trigger | Description |
 | :--- | :--- |
-| **`Ctrl + Space`** | Primary global hold/trigger gesture |
+| **`Ctrl + Space`** | Primary global hold/trigger gesture (configurable) |
 | **`Alt + O`** | Mnemonic secondary trigger (*O* for Opie / Winee) |
 | **`Middle Mouse Button`** | Scroll wheel click anywhere on screen |
 | **System Tray Icon** | Instant left-click trigger from the Windows notification area |
@@ -54,7 +59,7 @@
 
 Download and run the official Windows NSIS setup package:
 
-- **Installer**: `WINEE_1.4.0_Setup.exe` (2.99 MiB)
+- **Installer**: `WINEE_1.4.1_Setup.exe` (~3.00 MiB)
 - **Requirements**: Windows 11 or Windows 10 (x86_64)
 
 ---
@@ -64,6 +69,7 @@ Download and run the official Windows NSIS setup package:
 - **Backend**: Rust 2021 + Tauri v2 + Windows Crate (Win32 & WinRT APIs)
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + Lucide Icons
 - **Audio Engine**: Pure Web Audio API Oscillator Synthesizer
+- **CI / Build**: GitHub Actions automated matrix with cargo test & Tauri NSIS bundle
 - **Packaging**: NSIS Installer
 
 ---
