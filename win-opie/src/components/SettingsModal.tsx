@@ -15,6 +15,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { RadialMenu } from "./RadialMenu";
 import { THEMES, ThemeId } from "../types/theme";
 
+export type GlassMaterial = "liquid" | "frosted";
+
 export interface SettingsConfig {
   shortcut: string;
   autostart: boolean;
@@ -25,6 +27,7 @@ export interface SettingsConfig {
   stiffness: number;
   damping: number;
   glassBlur: number; // 0 to 100
+  glassMaterial: GlassMaterial;
   themeId: ThemeId;
 }
 
@@ -38,6 +41,7 @@ const DEFAULT_SETTINGS: SettingsConfig = {
   stiffness: 420,
   damping: 26,
   glassBlur: 36,
+  glassMaterial: "liquid",
   themeId: "crystal",
 };
 
@@ -267,10 +271,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {activeTab === "physics" && (
               <div className="space-y-5">
+                {/* Glass Material Mode Toggle: Liquid Glass vs Frosted Glass */}
+                <div className="space-y-1.5 pb-3 border-b border-white/10">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-white tracking-wide">
+                      Glass Optical Material
+                    </label>
+                    <span className="text-[10.5px] font-mono text-sky-400 uppercase tracking-wider">
+                      {settings.glassMaterial === "liquid" ? "Liquid Glass" : "Frosted Glass"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      onClick={() => handleUpdate({ glassMaterial: "liquid" })}
+                      className={`p-3 rounded-xl flex items-center space-x-2.5 text-left border transition-all ${
+                        settings.glassMaterial === "liquid"
+                          ? "bg-sky-500/20 border-sky-400 text-white shadow-xl shadow-sky-950/40"
+                          : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-300 border border-sky-300/80 shadow-[0_0_10px_rgba(56,189,248,0.5)] flex items-center justify-center text-xs">
+                        💧
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white">Liquid Glass</div>
+                        <div className="text-[10px] text-neutral-400 leading-tight">
+                          Fluid displacement ripples (#lg-dist) & specular lens
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleUpdate({ glassMaterial: "frosted" })}
+                      className={`p-3 rounded-xl flex items-center space-x-2.5 text-left border transition-all ${
+                        settings.glassMaterial === "frosted"
+                          ? "bg-white/20 border-white text-white shadow-xl shadow-white/10"
+                          : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-neutral-200 to-white border border-white/90 shadow-[0_0_10px_rgba(255,255,255,0.4)] flex items-center justify-center text-xs">
+                        ❄️
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white">Frosted Glass</div>
+                        <div className="text-[10px] text-neutral-400 leading-tight">
+                          Velvet diffusion blur & radial elliptical rim
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Visual Glass Theme Selector */}
                 <div className="space-y-1.5 pb-3 border-b border-white/10">
                   <label className="text-xs font-medium text-neutral-200">
-                    Premium Liquid Glass Theme
+                    Glass Color Tint
                   </label>
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
@@ -283,8 +338,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                       <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-white/30 to-white/90 border border-white/80 shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
                       <div>
-                        <div className="text-xs font-semibold">Apple Frosted Crystal</div>
-                        <div className="text-[10px] text-neutral-400">Pure Translucent Liquid Glass</div>
+                        <div className="text-xs font-semibold">Apple Crystal Glass</div>
+                        <div className="text-[10px] text-neutral-400">Pure Translucent Crystal</div>
                       </div>
                     </button>
 
@@ -299,7 +354,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-neutral-900 to-neutral-400 border border-neutral-300/60 shadow-sm" />
                       <div>
                         <div className="text-xs font-semibold">Dark Titanium Smoke</div>
-                        <div className="text-[10px] text-neutral-400">Obsidian Frosted Quartz</div>
+                        <div className="text-[10px] text-neutral-400">Obsidian Smoked Quartz</div>
                       </div>
                     </button>
                   </div>
@@ -423,6 +478,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         scale={0.68}
                         theme={currentTheme}
                         glassBlur={settings.glassBlur}
+                        glassMaterial={settings.glassMaterial}
                         isMiniPreview={true}
                         onHoverSlice={(idx) => setSampleSliceIndex(idx)}
                       />

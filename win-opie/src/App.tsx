@@ -45,6 +45,9 @@ export const App: React.FC = () => {
         if (parsed.themeId === "coral" || parsed.themeId === "graphite") {
           parsed.themeId = "crystal";
         }
+        if (!parsed.glassMaterial) {
+          parsed.glassMaterial = "liquid";
+        }
         return parsed;
       }
       return {
@@ -57,6 +60,7 @@ export const App: React.FC = () => {
         stiffness: 420,
         damping: 26,
         glassBlur: 36,
+        glassMaterial: "liquid",
         themeId: "crystal",
       };
     } catch {
@@ -70,6 +74,7 @@ export const App: React.FC = () => {
         stiffness: 420,
         damping: 26,
         glassBlur: 36,
+        glassMaterial: "liquid",
         themeId: "crystal",
       };
     }
@@ -292,6 +297,7 @@ export const App: React.FC = () => {
           scale={springScale}
           theme={currentTheme}
           glassBlur={settings.glassBlur}
+          glassMaterial={settings.glassMaterial}
           onSelectSlice={handleSelectSlice}
           onHoverSlice={(idx) => {
             if (idx !== polar.activeSliceIndex && settings.soundEnabled) {

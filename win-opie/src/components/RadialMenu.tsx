@@ -50,6 +50,7 @@ interface RadialMenuProps {
   scale: number;
   theme: ThemeConfig;
   glassBlur?: number;
+  glassMaterial?: "liquid" | "frosted";
   isMiniPreview?: boolean;
   onSelectSlice?: (index: number) => void;
   onHoverSlice?: (index: number) => void;
@@ -74,7 +75,8 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   isDeadzone,
   scale,
   theme,
-  glassBlur = 28,
+  glassBlur = 36,
+  glassMaterial = "liquid",
   isMiniPreview = false,
   onSelectSlice,
   onHoverSlice,
@@ -258,33 +260,75 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* 1. Multi-Layer Physical Liquid Glass Backing Layer (Apple-grade Depth & Frost) */}
-      <div
-        className="absolute inset-0 pointer-events-none rounded-full"
-        style={{
-          width: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
-          height: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
-          backdropFilter: `blur(${glassBlur}px) saturate(180%) contrast(108%) brightness(104%)`,
-          WebkitBackdropFilter: `blur(${glassBlur}px) saturate(180%) contrast(108%) brightness(104%)`,
-          background: theme.glassBg,
-          boxShadow: `
-            inset 2px -2px 1.5px -1px rgba(255, 255, 255, 0.9),
-            inset -2px 2px 1.5px -1px rgba(255, 255, 255, 0.9),
-            inset 6px -6px 2px -5px rgba(255, 255, 255, 0.55),
-            inset -6px 6px 2px -5px rgba(255, 255, 255, 0.55),
-            inset 0 0 28px 2px rgba(255, 255, 255, 0.15),
-            inset 0 0 2px 1px rgba(255, 255, 255, 0.65),
-            inset 0 4px 20px rgba(0, 0, 0, 0.12),
-            inset 0 8px 36px rgba(0, 0, 0, 0.18),
-            0 24px 64px rgba(0, 0, 0, 0.55),
-            0 6px 20px rgba(0, 0, 0, 0.3)
-          `,
-          border: `1px solid ${theme.glassBorder}`,
-        }}
-      />
+      {/* 1. Dynamic Glass Backing Architecture (Liquid Glass vs Frosted Glass) */}
+      {glassMaterial === "liquid" ? (
+        /* ========== LIQUID GLASS LAYERS (Displacement Wave Lens & Specular) ========== */
+        <div
+          className="absolute inset-0 pointer-events-none rounded-full overflow-hidden"
+          style={{
+            width: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
+            height: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            backdropFilter: `blur(${Math.min(glassBlur, 8)}px)`,
+            WebkitBackdropFilter: `blur(${Math.min(glassBlur, 8)}px)`,
+            filter: "url(#lg-dist)",
+            isolation: "isolate",
+            background: theme.glassBg,
+            boxShadow: `
+              inset 2px 2px 1px 0 rgba(255, 255, 255, 0.85),
+              inset -1.5px -1.5px 1px 0 rgba(255, 255, 255, 0.35),
+              inset 0 0 8px rgba(255, 255, 255, 0.65),
+              0 6px 6px rgba(0, 0, 0, 0.2),
+              0 0 24px rgba(0, 0, 0, 0.35)
+            `,
+            border: `1px solid ${theme.glassBorder}`,
+          }}
+        />
+      ) : (
+        /* ========== FROSTED GLASS LAYERS (Velvet Diffusion & Radial Ellipse Rim) ========== */
+        <div
+          className="absolute inset-0 pointer-events-none rounded-full overflow-hidden"
+          style={{
+            width: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
+            height: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            backdropFilter: `blur(${glassBlur || 32}px) saturate(180%) contrast(105%)`,
+            WebkitBackdropFilter: `blur(${glassBlur || 32}px) saturate(180%) contrast(105%)`,
+            background: theme.glassBg,
+            boxShadow: `
+              0 0 5px 1.5px #ffffff inset,
+              0 0 20px rgba(255, 255, 255, 0.5) inset,
+              0 24px 64px rgba(0, 0, 0, 0.55),
+              0 4px 12px rgba(0, 0, 0, 0.25)
+            `,
+            border: `1px solid ${theme.glassBorder}`,
+          }}
+        >
+          {/* Top Elliptical Frosted Sheen */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse at center top, rgba(255, 255, 255, 0.45) 0%, rgba(238, 238, 238, 0) 70%)",
+              height: "55%",
+            }}
+          />
+          {/* Bottom Elliptical Frosted Sheen */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse at center bottom, rgba(255, 255, 255, 0.3) 0%, rgba(238, 238, 238, 0) 70%)",
+              top: "45%",
+              height: "55%",
+            }}
+          />
+        </div>
+      )}
 
       <svg
         width={size}
@@ -296,6 +340,25 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         }}
       >
         <defs>
+          {/* Liquid Glass Displacement Wave Filter from User Specification */}
+          <filter id="lg-dist" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.008 0.008"
+              numOctaves={2}
+              seed={92}
+              result="noise"
+            />
+            <feGaussianBlur in="noise" stdDeviation={2} result="blurred" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="blurred"
+              scale={45}
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+
           {/* Directional 3D Specular Reflection Rim Gradient */}
           <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
