@@ -22,7 +22,7 @@
         "visible": false,
         "shadow": false,
         "resizable": false,
-        "devtools": true
+        "devtools": false
       }
     ],
     "security": {

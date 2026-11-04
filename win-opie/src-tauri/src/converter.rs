@@ -1,31 +1,76 @@
 use base64::Engine;
 use image::ImageFormat;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub fn find_ffmpeg() -> Option<String> {
-    let candidate = r"C:\ProgramData\chocolatey\bin\ffmpeg.exe";
-    if Path::new(candidate).exists() {
-        return Some(candidate.to_string());
+/// Generates a conflict-free output file path.
+/// If `flower_converted.png` already exists, generates `flower_converted_1.png`, `_2`, etc.
+/// This prevents destructive, silent overwrites of user files.
+pub fn generate_safe_output_path(parent: &Path, stem: &str, suffix: &str, ext: &str) -> PathBuf {
+    let clean_ext = ext.trim_start_matches('.').to_lowercase();
+    let base_name = if suffix.is_empty() {
+        format!("{}_converted.{}", stem, clean_ext)
+    } else {
+        format!("{}_{}_converted.{}", stem, suffix, clean_ext)
+    };
+
+    let mut candidate = parent.join(&base_name);
+    let mut counter = 1;
+    while candidate.exists() {
+        let new_name = if suffix.is_empty() {
+            format!("{}_converted_{}.{}", stem, counter, clean_ext)
+        } else {
+            format!("{}_{}_converted_{}.{}", stem, suffix, counter, clean_ext)
+        };
+        candidate = parent.join(new_name);
+        counter += 1;
     }
-    // Check path
+    candidate
+}
+
+pub fn find_ffmpeg() -> Option<String> {
+    // 1. Check bundled or local app directory
+    if let Ok(exe_dir) = std::env::current_exe() {
+        if let Some(parent) = exe_dir.parent() {
+            let local_ffmpeg = parent.join("ffmpeg.exe");
+            if local_ffmpeg.exists() {
+                return Some(local_ffmpeg.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    // 2. Check standard chocolatey / winget / scoop locations
+    let candidates = [
+        r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
+        r"C:\ffmpeg\bin\ffmpeg.exe",
+        r"C:\Tools\ffmpeg\bin\ffmpeg.exe",
+    ];
+    for candidate in &candidates {
+        if Path::new(candidate).exists() {
+            return Some(candidate.to_string());
+        }
+    }
+
+    // 3. Check system PATH
     if Command::new("ffmpeg").arg("-version").output().is_ok() {
         return Some("ffmpeg".to_string());
     }
+
     None
 }
 
 pub fn convert_image(input_path: &str, target_ext: &str) -> Result<String, String> {
     let p = Path::new(input_path);
     if !p.exists() {
-        return Err(format!("File not found: {}", input_path));
+        return Err(format!("Input image not found: {}", input_path));
     }
 
     let parent = p.parent().unwrap_or_else(|| Path::new(""));
     let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
     let ext_clean = target_ext.trim_start_matches('.').to_lowercase();
-    let out_filename = format!("{}_converted.{}", stem, ext_clean);
-    let out_path = parent.join(out_filename);
+
+    // Use safe non-colliding file path generator
+    let out_path = generate_safe_output_path(parent, stem, "", &ext_clean);
 
     let format = match ext_clean.as_str() {
         "png" => ImageFormat::Png,
@@ -33,12 +78,12 @@ pub fn convert_image(input_path: &str, target_ext: &str) -> Result<String, Strin
         "webp" => ImageFormat::WebP,
         "ico" => ImageFormat::Ico,
         "bmp" => ImageFormat::Bmp,
-        _ => return Err(format!("Unsupported format: {}", ext_clean)),
+        _ => return Err(format!("Unsupported image format: {}", ext_clean)),
     };
 
-    let img = image::open(p).map_err(|e| format!("Failed to open image: {e}"))?;
+    let img = image::open(p).map_err(|e| format!("Failed to decode image: {e}"))?;
     img.save_with_format(&out_path, format)
-        .map_err(|e| format!("Failed to save converted image: {e}"))?;
+        .map_err(|e| format!("Failed to encode and save converted image: {e}"))?;
 
     Ok(out_path.to_string_lossy().to_string())
 }
@@ -55,6 +100,8 @@ pub fn get_image_data_url(input_path: &str) -> Result<String, String> {
         "webp" => "image/webp",
         "gif" => "image/gif",
         "svg" => "image/svg+xml",
+        "ico" => "image/x-icon",
+        "bmp" => "image/bmp",
         _ => "image/png",
     };
     let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
@@ -62,10 +109,12 @@ pub fn get_image_data_url(input_path: &str) -> Result<String, String> {
 }
 
 pub fn convert_media_with_ffmpeg(input_path: &str, mode: &str) -> Result<String, String> {
-    let ffmpeg = find_ffmpeg().ok_or_else(|| "FFmpeg not found on system".to_string())?;
+    let ffmpeg = find_ffmpeg().ok_or_else(|| {
+        "FFmpeg is not installed or not found on PATH. Install FFmpeg (e.g. winget install Gyan.FFmpeg) to enable media conversions.".to_string()
+    })?;
     let p = Path::new(input_path);
     if !p.exists() {
-        return Err(format!("Input file not found: {}", input_path));
+        return Err(format!("Input media file not found: {}", input_path));
     }
     let parent = p.parent().unwrap_or_else(|| Path::new(""));
     let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("media");
@@ -115,12 +164,11 @@ pub fn convert_media_with_ffmpeg(input_path: &str, mode: &str) -> Result<String,
         ),
     };
 
-    let out_filename = format!("{}_{}_converted.{}", stem, mode, out_ext);
-    let out_path = parent.join(out_filename);
+    // Safe conflict-free output file path - never overwrite without asking!
+    let out_path = generate_safe_output_path(parent, stem, mode, out_ext);
     let out_str = out_path.to_string_lossy().to_string();
 
-    let mut full_args = vec!["-y".to_string()];
-    full_args.extend(args);
+    let mut full_args = args;
     full_args.push(out_str.clone());
 
     let status = Command::new(&ffmpeg)

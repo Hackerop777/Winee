@@ -50,7 +50,7 @@ export const App: React.FC = () => {
             outerRadius: 166,
             stiffness: 420,
             damping: 26,
-            blurStrength: 28,
+            glassBlur: 28,
             themeId: "coral",
           };
     } catch {
@@ -63,7 +63,7 @@ export const App: React.FC = () => {
         outerRadius: 166,
         stiffness: 420,
         damping: 26,
-        blurStrength: 28,
+        glassBlur: 28,
         themeId: "coral",
       };
     }
@@ -285,6 +285,7 @@ export const App: React.FC = () => {
           isDeadzone={polar.isDeadzone}
           scale={springScale}
           theme={currentTheme}
+          glassBlur={settings.glassBlur}
           onSelectSlice={handleSelectSlice}
           onHoverSlice={(idx) => {
             if (idx !== polar.activeSliceIndex && settings.soundEnabled) {

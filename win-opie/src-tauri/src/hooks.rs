@@ -111,8 +111,16 @@ pub fn start_input_hook(app: AppHandle) {
             }
             last_mbutton = mbutton_down;
 
-            // Sleep 16ms (~60Hz check): consumes negligible < 0.02% CPU like a native widget
-            std::thread::sleep(Duration::from_millis(16));
+            // Dynamic adaptive frequency:
+            // When radial wheel is active, sample at high responsiveness (12ms / ~80Hz) to track release.
+            // When idle, sleep 120ms (purely idle state, saving CPU cycles while RegisterHotKey handles instant key triggers).
+            let is_active = IS_TRIGGERED.load(Ordering::SeqCst);
+            let sleep_duration = if is_active {
+                Duration::from_millis(12)
+            } else {
+                Duration::from_millis(120)
+            };
+            std::thread::sleep(sleep_duration);
         }
     });
 }

@@ -14,7 +14,13 @@ dist/
 
 # Temporary Extraction Data
 extracted_frames/
+extracted_assets/
 Opie.dmg
+*.dmg
+*.car
+*.icns
+*.plist
+rustup-init.exe
 *.log
 
 # System & OS Files

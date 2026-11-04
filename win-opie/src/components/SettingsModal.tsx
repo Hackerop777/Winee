@@ -9,8 +9,11 @@ import {
   Keyboard,
   RotateCcw,
   Check,
+  Eye,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { RadialMenu } from "./RadialMenu";
+import { THEMES } from "../types/theme";
 
 export interface SettingsConfig {
   shortcut: string;
@@ -21,7 +24,7 @@ export interface SettingsConfig {
   outerRadius: number;
   stiffness: number;
   damping: number;
-  blurStrength: number;
+  glassBlur: number; // 0 to 100
   themeId: "coral" | "graphite";
 }
 
@@ -34,7 +37,7 @@ const DEFAULT_SETTINGS: SettingsConfig = {
   outerRadius: 166,
   stiffness: 420,
   damping: 26,
-  blurStrength: 28,
+  glassBlur: 28,
   themeId: "coral",
 };
 
@@ -53,12 +56,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [settings, setSettings] = useState<SettingsConfig>(() => {
     try {
       const saved = localStorage.getItem("winee_settings");
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          glassBlur: parsed.glassBlur ?? parsed.blurStrength ?? DEFAULT_SETTINGS.glassBlur,
+        };
+      }
+      return DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
   });
   const [savedNotice, setSavedNotice] = useState(false);
+  const [sampleSliceIndex, setSampleSliceIndex] = useState<number | null>(0);
 
   useEffect(() => {
     invoke<boolean>("get_autostart")
@@ -88,13 +100,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
+  const currentTheme = THEMES[settings.themeId || "coral"] || THEMES.coral;
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md select-none p-4"
       onClick={onClose}
     >
       <div
-        className="w-[620px] max-w-[92vw] h-[520px] max-h-[85vh] bg-[#14141c]/95 border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-neutral-200"
+        className="w-[740px] max-w-[95vw] h-[600px] max-h-[90vh] bg-[#12121a]/95 border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-neutral-200"
         onClick={(e) => e.stopPropagation()}
         style={{
           boxShadow: "0 24px 64px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.15)",
@@ -110,7 +124,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <h2 className="text-base font-semibold text-white tracking-wide">
                 WINEE Settings & Preferences
               </h2>
-              <p className="text-xs text-neutral-400">Windows 11 Radial Productivity Utility</p>
+              <p className="text-xs text-neutral-400">Windows 11 Fluid Radial Action Utility</p>
             </div>
           </div>
           <button
@@ -124,7 +138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Content Body */}
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar Tabs */}
-          <div className="w-44 border-r border-white/10 bg-black/20 p-3 space-y-1">
+          <div className="w-48 border-r border-white/10 bg-black/20 p-3 space-y-1">
             <button
               onClick={() => setActiveTab("general")}
               className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
@@ -145,7 +159,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <Sparkles size={15} />
-              <span>Motion & Glass</span>
+              <span>Liquid Glass & Motion</span>
             </button>
             <button
               onClick={() => setActiveTab("layout")}
@@ -252,7 +266,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
 
             {activeTab === "physics" && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {/* Visual Glass Theme Selector */}
                 <div className="space-y-1.5 pb-3 border-b border-white/10">
                   <label className="text-xs font-medium text-neutral-200">
@@ -269,7 +283,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                       <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-orange-600 to-amber-300 border border-amber-200/50 shadow-sm" />
                       <div>
-                        <div className="text-xs font-semibold">Warm Coral Glass</div>
+                        <div className="text-xs font-semibold">Warm Coral Liquid Glass</div>
                         <div className="text-[10px] text-neutral-400">Reference Amber Glow</div>
                       </div>
                     </button>
@@ -284,90 +298,178 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                       <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-sky-600 to-cyan-300 border border-sky-200/50 shadow-sm" />
                       <div>
-                        <div className="text-xs font-semibold">Cool Graphite Glass</div>
+                        <div className="text-xs font-semibold">Cool Graphite Liquid Glass</div>
                         <div className="text-[10px] text-neutral-400">Windows 11 Fluent Blue</div>
                       </div>
                     </button>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-neutral-300">
-                    <span>Spring Stiffness</span>
-                    <span className="font-mono text-sky-400">{settings.stiffness}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="200"
-                    max="600"
-                    step="10"
-                    value={settings.stiffness}
-                    onChange={(e) => handleUpdate({ stiffness: Number(e.target.value) })}
-                    className="w-full accent-sky-400 cursor-pointer"
-                  />
-                  <p className="text-[11px] text-neutral-400">
-                    Higher values produce snappier radial expansion (Default: 420).
-                  </p>
-                </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-neutral-300">
-                    <span>Spring Damping</span>
-                    <span className="font-mono text-sky-400">{settings.damping}</span>
+                {/* Apple Liquid Glass Blur Customization (0 to 100) */}
+                <div className="space-y-2 p-3.5 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Sparkles size={15} className="text-amber-400" />
+                      <span className="text-xs font-semibold text-white">
+                        Apple Liquid Glass Blur: {settings.glassBlur}px
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-mono text-amber-300">
+                      {settings.glassBlur === 0
+                        ? "Pure Crystal (0px)"
+                        : settings.glassBlur <= 30
+                        ? "Apple Liquid Glass (28px)"
+                        : settings.glassBlur <= 65
+                        ? "Medium Frost"
+                        : "Deep Velvet Frost (100px)"}
+                    </span>
                   </div>
+
                   <input
                     type="range"
-                    min="15"
-                    max="45"
+                    min="0"
+                    max="100"
                     step="1"
-                    value={settings.damping}
-                    onChange={(e) => handleUpdate({ damping: Number(e.target.value) })}
-                    className="w-full accent-sky-400 cursor-pointer"
+                    value={settings.glassBlur}
+                    onChange={(e) => handleUpdate({ glassBlur: Number(e.target.value) })}
+                    className="w-full accent-amber-400 cursor-pointer"
                   />
-                  <p className="text-[11px] text-neutral-400">
-                    Controls overshoot settling. 26 yields a smooth 4% overshoot settle.
-                  </p>
+
+                  {/* Preset Quick Buttons */}
+                  <div className="flex items-center space-x-2 pt-1 text-[10px]">
+                    <span className="text-neutral-400">Presets:</span>
+                    <button
+                      onClick={() => handleUpdate({ glassBlur: 0 })}
+                      className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-neutral-300 transition-colors"
+                    >
+                      Crystal (0)
+                    </button>
+                    <button
+                      onClick={() => handleUpdate({ glassBlur: 28 })}
+                      className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-amber-300 font-semibold transition-colors"
+                    >
+                      Apple Liquid (28)
+                    </button>
+                    <button
+                      onClick={() => handleUpdate({ glassBlur: 55 })}
+                      className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-neutral-300 transition-colors"
+                    >
+                      Medium (55)
+                    </button>
+                    <button
+                      onClick={() => handleUpdate({ glassBlur: 100 })}
+                      className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-neutral-300 transition-colors"
+                    >
+                      Deep Frost (100)
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-neutral-300">
-                    <span>Inner Deadzone Radius</span>
-                    <span className="font-mono text-sky-400">{settings.deadzoneRadius}px</span>
+                {/* Interactive Live Sample Wheel Preview */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-neutral-300">
+                    <span className="flex items-center space-x-1.5 font-medium">
+                      <Eye size={14} className="text-sky-400" />
+                      <span>Live Liquid Glass Sample Preview (Interactive)</span>
+                    </span>
+                    <span className="text-[10.5px] text-neutral-400">
+                      Hover over sectors to test real-time fluid bulge & glass
+                    </span>
                   </div>
-                  <input
-                    type="range"
-                    min="24"
-                    max="52"
-                    step="2"
-                    value={settings.deadzoneRadius}
-                    onChange={(e) => handleUpdate({ deadzoneRadius: Number(e.target.value) })}
-                    className="w-full accent-sky-400 cursor-pointer"
-                  />
-                  <p className="text-[11px] text-neutral-400">
-                    Distance from origin within which the gesture aborts safely.
-                  </p>
+
+                  {/* Simulated Scenic Wallpaper Backdrop Container */}
+                  <div
+                    className="relative w-full h-[260px] rounded-2xl overflow-hidden border border-white/15 flex items-center justify-center shadow-inner"
+                    style={{
+                      // Sunset landscape wallpaper gradient with rich contrast to show liquid glass refraction
+                      background:
+                        "linear-gradient(135deg, #2b1055 0%, #75225b 40%, #b83d47 70%, #d4633f 100%)",
+                    }}
+                  >
+                    {/* Background Visual Elements (Mountains & Stars to verify true blur) */}
+                    <div className="absolute inset-0 pointer-events-none opacity-60">
+                      {/* Sun / Luminous orb behind glass */}
+                      <div className="absolute left-[38%] top-[25%] w-28 h-28 rounded-full bg-gradient-to-tr from-amber-400 to-orange-500 blur-[2px] opacity-80" />
+                      {/* Mountain silhouettes */}
+                      <svg
+                        className="absolute bottom-0 w-full h-24 text-black/40 fill-current"
+                        viewBox="0 0 500 150"
+                        preserveAspectRatio="none"
+                      >
+                        <path d="M0,150 L0,80 L120,20 L240,90 L360,10 L500,100 L500,150 Z" />
+                      </svg>
+                      {/* Grid / Text background lines to test optical distortion */}
+                      <div className="absolute top-4 left-4 text-[10px] font-mono text-white/40 tracking-wider">
+                        DESKTOP BACKGROUND // 60 FPS LIQUID BLUR TEST
+                      </div>
+                    </div>
+
+                    {/* Interactive Sample Wheel Mounted over Wallpaper */}
+                    <div className="relative w-[360px] h-[360px] flex items-center justify-center">
+                      <RadialMenu
+                        originX={180}
+                        originY={180}
+                        mode="default"
+                        media={{
+                          is_available: false,
+                          title: "Sample Track",
+                          artist: "Apple Liquid",
+                          album_title: "",
+                          is_playing: false,
+                          thumbnail_base64: null,
+                        }}
+                        activeSliceIndex={sampleSliceIndex}
+                        isDeadzone={false}
+                        scale={0.68}
+                        theme={currentTheme}
+                        glassBlur={settings.glassBlur}
+                        isMiniPreview={true}
+                        onHoverSlice={(idx) => setSampleSliceIndex(idx)}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-neutral-300">
-                    <span>Backdrop Acrylic Blur</span>
-                    <span className="font-mono text-sky-400">{settings.blurStrength}px</span>
+                {/* Spring Physics Fine Tuning */}
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-neutral-300">
+                      <span>Spring Stiffness</span>
+                      <span className="font-mono text-sky-400">{settings.stiffness}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="200"
+                      max="600"
+                      step="10"
+                      value={settings.stiffness}
+                      onChange={(e) => handleUpdate({ stiffness: Number(e.target.value) })}
+                      className="w-full accent-sky-400 cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="8"
-                    max="36"
-                    step="2"
-                    value={settings.blurStrength}
-                    onChange={(e) => handleUpdate({ blurStrength: Number(e.target.value) })}
-                    className="w-full accent-sky-400 cursor-pointer"
-                  />
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-neutral-300">
+                      <span>Spring Damping</span>
+                      <span className="font-mono text-sky-400">{settings.damping}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="15"
+                      max="45"
+                      step="1"
+                      value={settings.damping}
+                      onChange={(e) => handleUpdate({ damping: Number(e.target.value) })}
+                      className="w-full accent-sky-400 cursor-pointer"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
             {activeTab === "layout" && (
               <div className="space-y-3">
-                <div className="text-xs text-neutral-300 font-medium">8-Slice Radial Wheel Modes</div>
+                <div className="text-xs text-neutral-300 font-medium">8-Sector Radial Wheel Modes</div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
                     <div className="font-semibold text-sky-400">Everyday (Default)</div>
@@ -417,12 +519,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/20 text-sky-300">
                   <div className="font-bold text-sm text-sky-200">WINEE v1.4.0</div>
                   <div className="text-[11px] text-sky-400/90 mt-0.5">
-                    Independent Native Windows 11 Radial Action & Productivity Utility
+                    Independent Native Windows 11 Fluid Radial Action Utility
                   </div>
                 </div>
                 <div className="space-y-1 text-neutral-400">
                   <div>• Architecture: Tauri v2 (Rust Backend) + React 18 + Tailwind CSS</div>
-                  <div>• Zero-Power Idle Footprint: DWM detachment &lt;0.02% CPU widget mode</div>
+                  <div>• Shell Integration: Direct Windows Shell COM selection discovery</div>
+                  <div>• Glass Engine: Apple Liquid Glass with 0-100 customizable blur</div>
                   <div>• Storage Isolation: 100% strictly on D: drive during compilation</div>
                   <div>• Sound System: Offline Web Audio API low-latency oscillator synthesis</div>
                 </div>

@@ -49,6 +49,8 @@ interface RadialMenuProps {
   isDeadzone: boolean;
   scale: number;
   theme: ThemeConfig;
+  glassBlur?: number;
+  isMiniPreview?: boolean;
   onSelectSlice?: (index: number) => void;
   onHoverSlice?: (index: number) => void;
   onCancel?: () => void;
@@ -72,6 +74,8 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   isDeadzone,
   scale,
   theme,
+  glassBlur = 28,
+  isMiniPreview = false,
   onSelectSlice,
   onHoverSlice,
   onCancel,
@@ -249,20 +253,44 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         width: `${size}px`,
         height: `${size}px`,
         transform: `translate(-50%, -50%) scale(${scale})`,
-        transition: "transform 140ms cubic-bezier(0.16, 1, 0.3, 1)",
+        // Pure high-fps spring execution without competing CSS transition:
+        transformOrigin: "center center",
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      {/* Apple's Liquid Glass Backing Layer: Translucent Depth + Custom Blur + Specular Rim */}
+      <div
+        className="absolute inset-0 pointer-events-none rounded-full"
+        style={{
+          width: `${(R_OUTER + BULGE_DELTA + 4) * 2}px`,
+          height: `${(R_OUTER + BULGE_DELTA + 4) * 2}px`,
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          backdropFilter: `blur(${glassBlur}px) saturate(190%) contrast(105%)`,
+          WebkitBackdropFilter: `blur(${glassBlur}px) saturate(190%) contrast(105%)`,
+          boxShadow: `inset 0 1.5px 2px rgba(255, 255, 255, 0.35), inset 0 -2px 4px rgba(0, 0, 0, 0.4), 0 24px 64px rgba(0, 0, 0, 0.65)`,
+          background: theme.glassBg,
+        }}
+      />
+
       <svg
         width={size}
         height={size}
         viewBox={`-${half} -${half} ${size} ${size}`}
-        className="overflow-visible"
+        className="relative z-10 overflow-visible"
         style={{
-          filter: "drop-shadow(0 24px 64px rgba(0, 0, 0, 0.65))",
+          filter: "drop-shadow(0 20px 48px rgba(0, 0, 0, 0.55))",
         }}
       >
         <defs>
+          {/* Directional Specular Reflection Lighting Gradient */}
+          <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
+            <stop offset="45%" stopColor="#ffffff" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.08" />
+          </linearGradient>
+
           {/* Subtle Radial Glow for Active Sector */}
           {activeSliceIndex !== null && (
             <radialGradient
@@ -288,10 +316,11 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         <path
           d={discPath}
           fill={theme.glassBg}
-          stroke={theme.glassBorder}
-          strokeWidth="1.2"
+          stroke="url(#specularRim)"
+          strokeWidth="1.4"
           style={{
-            backdropFilter: "blur(32px) saturate(190%)",
+            backdropFilter: `blur(${glassBlur}px) saturate(190%)`,
+            WebkitBackdropFilter: `blur(${glassBlur}px) saturate(190%)`,
             transition: "d 180ms cubic-bezier(0.16, 1, 0.3, 1), fill 200ms ease",
           }}
         />
@@ -406,7 +435,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
 
       {/* 5. Center Hub: Large Luminous Ring with Prominent Action Label */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer pointer-events-auto"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer pointer-events-auto z-20"
         onClick={(e) => {
           e.stopPropagation();
           onCancel?.();
@@ -423,13 +452,15 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
       </div>
 
       {/* 6. Contextual Floating Action Bubbles (Sub-actions) */}
-      <ContextBubbles
-        subActions={activeSubActions}
-        sectorAngle={activeSectorAngle}
-        baseRadius={R_OUTER + 50}
-        theme={theme}
-        visible={!isDeadzone && activeSubActions.length > 0}
-      />
+      {!isMiniPreview && (
+        <ContextBubbles
+          subActions={activeSubActions}
+          sectorAngle={activeSectorAngle}
+          baseRadius={R_OUTER + 50}
+          theme={theme}
+          visible={!isDeadzone && activeSubActions.length > 0}
+        />
+      )}
     </div>
   );
 };
