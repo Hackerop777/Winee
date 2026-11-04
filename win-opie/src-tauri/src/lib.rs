@@ -58,7 +58,72 @@ fn hide_window(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-async fn execute_radial_action(mode: String, index: usize, files: Vec<String>) -> Result<String, String> {
+async fn execute_radial_action(
+    mode: String,
+    index: usize,
+    files: Vec<String>,
+    action_id: Option<String>,
+) -> Result<String, String> {
+    if let Some(id) = action_id {
+        match id.as_str() {
+            "media_play_pause" => {
+                media::toggle_play_pause();
+                return Ok("Toggled Play/Pause".into());
+            }
+            "media_next" => {
+                media::skip_next();
+                return Ok("Skipped Next".into());
+            }
+            "media_prev" => {
+                media::skip_previous();
+                return Ok("Skipped Previous".into());
+            }
+            "screen_snip" => {
+                system::trigger_screen_snip();
+                return Ok("Triggered Screen Snip".into());
+            }
+            "quick_note" => {
+                system::open_quick_note();
+                return Ok("Opened Quick Note".into());
+            }
+            "system_mute" => {
+                let muted = system::toggle_audio_mute()?;
+                return Ok(format!("Audio Mute: {}", muted));
+            }
+            "clipboard" => {
+                system::open_clipboard_history();
+                return Ok("Opened Clipboard History".into());
+            }
+            "open_browser" => {
+                system::open_default_browser();
+                return Ok("Opened Browser".into());
+            }
+            "open_terminal" => {
+                system::open_terminal();
+                return Ok("Opened Terminal".into());
+            }
+            "open_explorer" => {
+                system::open_file_explorer();
+                return Ok("Opened File Explorer".into());
+            }
+            "task_manager" => {
+                system::open_task_manager();
+                return Ok("Opened Task Manager".into());
+            }
+            "lock_pc" => {
+                system::lock_workstation();
+                return Ok("Locked Workstation".into());
+            }
+            "settings" => {
+                return Ok("Settings".into());
+            }
+            "none" => {
+                return Ok("No-op".into());
+            }
+            _ => {}
+        }
+    }
+
     match mode.as_str() {
         "image" => {
             if files.is_empty() {

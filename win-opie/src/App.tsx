@@ -8,6 +8,7 @@ import { usePolarCoords } from "./hooks/usePolarCoords";
 import { useSpringValue } from "./hooks/useSpringPhysics";
 import { sounds } from "./utils/sound";
 import { THEMES } from "./types/theme";
+import { DEFAULT_WHEEL_SLOTS } from "./types/actions";
 
 interface ShowPayload {
   origin_x: number;
@@ -48,6 +49,9 @@ export const App: React.FC = () => {
         if (!parsed.glassMaterial) {
           parsed.glassMaterial = "liquid";
         }
+        if (!parsed.customSlots || !Array.isArray(parsed.customSlots) || parsed.customSlots.length !== 8) {
+          parsed.customSlots = DEFAULT_WHEEL_SLOTS;
+        }
         return parsed;
       }
       return {
@@ -62,6 +66,7 @@ export const App: React.FC = () => {
         glassBlur: 36,
         glassMaterial: "liquid",
         themeId: "crystal",
+        customSlots: DEFAULT_WHEEL_SLOTS,
       };
     } catch {
       return {
@@ -76,6 +81,7 @@ export const App: React.FC = () => {
         glassBlur: 36,
         glassMaterial: "liquid",
         themeId: "crystal",
+        customSlots: DEFAULT_WHEEL_SLOTS,
       };
     }
   });
@@ -160,13 +166,17 @@ export const App: React.FC = () => {
   );
 
   const handleSelectSlice = useCallback(
-    async (index: number) => {
+    async (index: number, actionId?: string) => {
       if (settings.soundEnabled) {
         sounds.play("button-press.wav", 0.6);
       }
 
-      // If Default mode and index 7 (Settings): open settings modal!
-      if (mode === "default" && index === 7) {
+      if (actionId === "none") {
+        return;
+      }
+
+      // If Settings action: open settings modal!
+      if (actionId === "settings" || (mode === "default" && index === 7 && !actionId)) {
         setIsOpen(false);
         setIsSettingsOpen(true);
         resetCoords();
@@ -181,6 +191,7 @@ export const App: React.FC = () => {
           mode,
           index,
           files,
+          actionId: actionId || null,
         });
       } catch (err) {
         console.error("Action execution error:", err);
@@ -202,8 +213,8 @@ export const App: React.FC = () => {
       const rawX = payload.origin_x > 0 ? payload.origin_x / dpr : (window.innerWidth || 1920) / 2;
       const rawY = payload.origin_y > 0 ? payload.origin_y / dpr : (window.innerHeight || 1080) / 2;
 
-      // Safe margin for 480px bounding box
-      const margin = 240;
+      // Safe margin for 420px disc so no edges ever get cut off
+      const margin = 210;
       const viewportW = window.innerWidth || 1920;
       const viewportH = window.innerHeight || 1080;
       const clampedX = Math.max(margin, Math.min(viewportW - margin, rawX));
@@ -279,7 +290,7 @@ export const App: React.FC = () => {
           handleClose();
         }
       }}
-      className="relative w-screen h-screen overflow-hidden select-none bg-black/15 backdrop-blur-[2px]"
+      className="relative w-screen h-screen overflow-hidden select-none bg-transparent"
       style={{
         cursor: "default",
       }}
@@ -298,6 +309,7 @@ export const App: React.FC = () => {
           theme={currentTheme}
           glassBlur={settings.glassBlur}
           glassMaterial={settings.glassMaterial}
+          customSlots={settings.customSlots}
           onSelectSlice={handleSelectSlice}
           onHoverSlice={(idx) => {
             if (idx !== polar.activeSliceIndex && settings.soundEnabled) {

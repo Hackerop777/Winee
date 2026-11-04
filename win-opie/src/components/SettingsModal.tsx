@@ -14,6 +14,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { RadialMenu } from "./RadialMenu";
 import { THEMES, ThemeId } from "../types/theme";
+import { ACTION_CATALOG, DEFAULT_WHEEL_SLOTS } from "../types/actions";
 
 export type GlassMaterial = "liquid" | "frosted";
 
@@ -29,6 +30,7 @@ export interface SettingsConfig {
   glassBlur: number; // 0 to 100
   glassMaterial: GlassMaterial;
   themeId: ThemeId;
+  customSlots: string[];
 }
 
 const DEFAULT_SETTINGS: SettingsConfig = {
@@ -43,6 +45,7 @@ const DEFAULT_SETTINGS: SettingsConfig = {
   glassBlur: 36,
   glassMaterial: "liquid",
   themeId: "crystal",
+  customSlots: DEFAULT_WHEEL_SLOTS,
 };
 
 interface SettingsModalProps {
@@ -66,6 +69,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           ...DEFAULT_SETTINGS,
           ...parsed,
           glassBlur: parsed.glassBlur ?? parsed.blurStrength ?? DEFAULT_SETTINGS.glassBlur,
+          customSlots:
+            parsed.customSlots && Array.isArray(parsed.customSlots) && parsed.customSlots.length === 8
+              ? parsed.customSlots
+              : DEFAULT_WHEEL_SLOTS,
         };
       }
       return DEFAULT_SETTINGS;
@@ -479,6 +486,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         theme={currentTheme}
                         glassBlur={settings.glassBlur}
                         glassMaterial={settings.glassMaterial}
+                        customSlots={settings.customSlots}
                         isMiniPreview={true}
                         onHoverSlice={(idx) => setSampleSliceIndex(idx)}
                       />
@@ -524,47 +532,141 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
 
             {activeTab === "layout" && (
-              <div className="space-y-3">
-                <div className="text-xs text-neutral-300 font-medium">8-Sector Radial Wheel Modes</div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
-                    <div className="font-semibold text-sky-400">Everyday (Default)</div>
-                    <div className="text-[10.5px] text-neutral-400 leading-relaxed">
-                      • Play / Pause<br />
-                      • Next Track<br />
-                      • Prev Track<br />
-                      • Screen Snip<br />
-                      • Quick Note<br />
-                      • Mute System<br />
-                      • Clipboard<br />
-                      • Settings
+              <div className="space-y-4">
+                {/* Header & Presets */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                  <div>
+                    <div className="text-xs font-semibold text-white">Customize 8-Sector Radial Slices</div>
+                    <div className="text-[11px] text-neutral-400">
+                      Add the shortcuts you need, or disable unused slices
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
-                    <div className="font-semibold text-emerald-400">Image Selection</div>
-                    <div className="text-[10.5px] text-neutral-400 leading-relaxed">
-                      • Convert to PNG<br />
-                      • Convert to JPG<br />
-                      • Convert to WEBP<br />
-                      • Convert to ICO<br />
-                      • Convert to BMP<br />
-                      • Copy Data URL<br />
-                      • Reveal in Folder<br />
-                      • Screen Snip
-                    </div>
+                  <div className="flex items-center space-x-1.5 text-[10px]">
+                    <button
+                      onClick={() => handleUpdate({ customSlots: DEFAULT_WHEEL_SLOTS })}
+                      className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-sky-300 font-medium transition-colors"
+                      title="Reset to default everyday shortcuts"
+                    >
+                      Default
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleUpdate({
+                          customSlots: [
+                            "open_terminal",
+                            "open_browser",
+                            "open_explorer",
+                            "screen_snip",
+                            "clipboard",
+                            "task_manager",
+                            "lock_pc",
+                            "settings",
+                          ],
+                        })
+                      }
+                      className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-emerald-300 font-medium transition-colors"
+                      title="Terminal, Browser, Explorer, Snip, Task Manager, Lock PC"
+                    >
+                      Dev / Power
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleUpdate({
+                          customSlots: [
+                            "media_play_pause",
+                            "media_next",
+                            "media_prev",
+                            "system_mute",
+                            "screen_snip",
+                            "none",
+                            "none",
+                            "settings",
+                          ],
+                        })
+                      }
+                      className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-amber-300 font-medium transition-colors"
+                      title="Play/Pause, Next, Prev, Mute, Snip, Settings"
+                    >
+                      Media Only
+                    </button>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
-                    <div className="font-semibold text-purple-400">Video / Audio</div>
-                    <div className="text-[10.5px] text-neutral-400 leading-relaxed">
-                      • Convert to MP4<br />
-                      • Generate GIF<br />
-                      • Extract MP3<br />
-                      • Transcode 720p<br />
-                      • Strip Audio<br />
-                      • Reveal in Folder<br />
-                      • Screen Snip<br />
-                      • Clipboard
-                    </div>
+                </div>
+
+                {/* 8 Sector Slots Grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {settings.customSlots.map((actionId, slotIdx) => {
+                    const currentAction = ACTION_CATALOG[actionId] || ACTION_CATALOG.none;
+                    const IconComp = currentAction.icon;
+                    const slotPositions = [
+                      "Sector 1 (East / 0°)",
+                      "Sector 2 (South-East / 45°)",
+                      "Sector 3 (South / 90°)",
+                      "Sector 4 (South-West / 135°)",
+                      "Sector 5 (West / 180°)",
+                      "Sector 6 (North-West / 225°)",
+                      "Sector 7 (North / 270°)",
+                      "Sector 8 (North-East / 315°)",
+                    ];
+
+                    return (
+                      <div
+                        key={slotIdx}
+                        className={`p-2.5 rounded-xl border flex items-center space-x-2.5 transition-colors ${
+                          actionId === "none"
+                            ? "bg-white/[0.02] border-white/5 opacity-50"
+                            : "bg-white/5 border-white/10 hover:border-white/20"
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0">
+                          <IconComp size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] text-neutral-400 font-mono leading-none mb-1">
+                            {slotPositions[slotIdx]}
+                          </div>
+                          <select
+                            value={actionId}
+                            onChange={(e) => {
+                              const next = [...settings.customSlots];
+                              next[slotIdx] = e.target.value;
+                              handleUpdate({ customSlots: next });
+                            }}
+                            className="w-full bg-[#181824] border border-white/15 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400 cursor-pointer"
+                          >
+                            <optgroup label="System & Productivity">
+                              <option value="screen_snip">Screen Snip</option>
+                              <option value="clipboard">Clipboard History (Win+V)</option>
+                              <option value="quick_note">Quick Notepad</option>
+                              <option value="task_manager">Task Manager</option>
+                              <option value="lock_pc">Lock Workstation (Win+L)</option>
+                              <option value="settings">Winee Settings</option>
+                            </optgroup>
+                            <optgroup label="Apps & Tools">
+                              <option value="open_terminal">Terminal / PowerShell</option>
+                              <option value="open_browser">Web Browser</option>
+                              <option value="open_explorer">File Explorer</option>
+                            </optgroup>
+                            <optgroup label="Media & Audio">
+                              <option value="media_play_pause">Play / Pause</option>
+                              <option value="media_next">Next Track</option>
+                              <option value="media_prev">Previous Track</option>
+                              <option value="system_mute">Mute Audio</option>
+                            </optgroup>
+                            <optgroup label="Remove / Disable">
+                              <option value="none">(Disabled / Empty Sector)</option>
+                            </optgroup>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Information Card on Context-Aware File Actions */}
+                <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/20 text-xs text-neutral-300 space-y-1">
+                  <div className="font-semibold text-sky-300">Context-Aware Radial Wheels:</div>
+                  <div className="text-[11px] text-neutral-400 leading-relaxed">
+                    When you select images or media files in Windows Explorer, WINEE automatically switches to high-speed file conversion actions (PNG, JPG, WEBP, ICO, MP4, GIF, MP3, 720p). The custom slots configured above apply to your everyday desktop radial mode.
                   </div>
                 </div>
               </div>

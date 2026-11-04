@@ -2,15 +2,11 @@ import React, { useMemo } from "react";
 import {
   Play,
   Pause,
-  SkipForward,
-  SkipBack,
   Scissors,
-  FileText,
   VolumeX,
   Volume2,
   Volume1,
   ClipboardList,
-  Settings,
   Image as ImageIcon,
   FileType,
   Sparkles,
@@ -31,9 +27,11 @@ import {
 import { CenterHub, MediaStateProps } from "./CenterHub";
 import { ContextBubbles, SubAction } from "./ContextBubbles";
 import { ThemeConfig } from "../types/theme";
+import { ACTION_CATALOG, DEFAULT_WHEEL_SLOTS } from "../types/actions";
 
 export interface SliceItem {
   id: number;
+  actionId?: string;
   label: string;
   icon: LucideIcon;
   subActions?: SubAction[];
@@ -51,8 +49,9 @@ interface RadialMenuProps {
   theme: ThemeConfig;
   glassBlur?: number;
   glassMaterial?: "liquid" | "frosted";
+  customSlots?: string[];
   isMiniPreview?: boolean;
-  onSelectSlice?: (index: number) => void;
+  onSelectSlice?: (index: number, actionId?: string) => void;
   onHoverSlice?: (index: number) => void;
   onCancel?: () => void;
   onThemeToggle?: () => void;
@@ -77,6 +76,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   theme,
   glassBlur = 36,
   glassMaterial = "liquid",
+  customSlots = DEFAULT_WHEEL_SLOTS,
   isMiniPreview = false,
   onSelectSlice,
   onHoverSlice,
@@ -125,43 +125,43 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         { id: 7, label: "Clipboard History", icon: ClipboardList },
       ];
     } else {
-      // Default everyday radial menu (matching Opie reference)
-      return [
-        {
-          id: 0,
-          label: media.is_playing ? "Pause" : "Play",
-          icon: media.is_playing ? Pause : Play,
-          subActions: [
+      // User-customized radial wheel actions (fallback to default catalog)
+      const slots = customSlots && customSlots.length === 8 ? customSlots : DEFAULT_WHEEL_SLOTS;
+      return slots.map((actionId, idx) => {
+        const item = ACTION_CATALOG[actionId] || ACTION_CATALOG.none;
+        let label = item.label;
+        let icon = item.icon;
+        let subActions: SubAction[] | undefined = undefined;
+
+        if (actionId === "media_play_pause") {
+          label = media.is_playing ? "Pause" : "Play";
+          icon = media.is_playing ? Pause : Play;
+          subActions = [
             { id: "vol_up", label: "Volume +", icon: Volume2, onClick: () => onSubAction?.("vol_up") },
             { id: "vol_down", label: "Volume -", icon: Volume1, onClick: () => onSubAction?.("vol_down") },
-          ],
-        },
-        { id: 1, label: "Next Track", icon: SkipForward },
-        { id: 2, label: "Prev Track", icon: SkipBack },
-        {
-          id: 3,
-          label: "Screen Snip",
-          icon: Scissors,
-          subActions: [
+          ];
+        } else if (actionId === "screen_snip") {
+          subActions = [
             { id: "snip_window", label: "Window Snip", icon: AppWindow, onClick: () => onSubAction?.("snip_window") },
             { id: "snip_full", label: "Full Screen", icon: Maximize, onClick: () => onSubAction?.("snip_full") },
-          ],
-        },
-        { id: 4, label: "Quick Note", icon: FileText },
-        { id: 5, label: "Mute System", icon: VolumeX },
-        { id: 6, label: "Clipboard History", icon: ClipboardList },
-        {
-          id: 7,
-          label: "Settings",
-          icon: Settings,
-          subActions: [
+          ];
+        } else if (actionId === "settings") {
+          subActions = [
             { id: "theme_toggle", label: "Switch Theme", icon: Palette, onClick: () => onThemeToggle?.() },
             { id: "autostart", label: "Startup Toggle", icon: Power, onClick: () => onSubAction?.("autostart") },
-          ],
-        },
-      ];
+          ];
+        }
+
+        return {
+          id: idx,
+          actionId,
+          label,
+          icon,
+          subActions,
+        };
+      });
     }
-  }, [mode, media.is_playing, onSubAction, onThemeToggle]);
+  }, [mode, customSlots, media.is_playing, onSubAction, onThemeToggle]);
 
   // Compute organic fluid teardrop outer boundary path with C1 continuity
   const discPath = useMemo(() => {
@@ -230,14 +230,19 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
     ].join(" ");
   }, [activeSliceIndex, isDeadzone]);
 
-  const activeLabel =
+  const activeSlice =
     !isDeadzone && activeSliceIndex !== null && slices[activeSliceIndex]
-      ? slices[activeSliceIndex].label
+      ? slices[activeSliceIndex]
+      : null;
+
+  const activeLabel =
+    activeSlice && activeSlice.actionId !== "none"
+      ? activeSlice.label
       : null;
 
   const activeSubActions =
-    !isDeadzone && activeSliceIndex !== null && slices[activeSliceIndex]
-      ? slices[activeSliceIndex].subActions || []
+    activeSlice && activeSlice.actionId !== "none"
+      ? activeSlice.subActions || []
       : [];
 
   const activeSectorAngle =
@@ -469,56 +474,62 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
           const dotY = rDot * Math.sin(midAngle);
 
           const IconComponent = slice.icon;
+          const isNone = slice.actionId === "none";
 
           return (
             <g
               key={slice.id}
-              onClick={() => onSelectSlice?.(idx)}
-              onMouseEnter={() => onHoverSlice?.(idx)}
-              className="cursor-pointer group"
+              onClick={() => !isNone && onSelectSlice?.(idx, slice.actionId)}
+              onMouseEnter={() => !isNone && onHoverSlice?.(idx)}
+              className={isNone ? "pointer-events-none opacity-20" : "cursor-pointer group"}
             >
-              {/* Invisible Sector Hitbox */}
-              <circle
-                cx={ix}
-                cy={iy}
-                r="38"
-                fill="transparent"
-                className="pointer-events-auto"
-              />
+              {/* Sector Hitbox */}
+              {!isNone && (
+                <circle
+                  cx={ix}
+                  cy={iy}
+                  r="38"
+                  fill="transparent"
+                  className="pointer-events-auto"
+                />
+              )}
 
               {/* Centered Vector Icon */}
-              <foreignObject
-                x={ix - 18}
-                y={iy - 18}
-                width={36}
-                height={36}
-                className="pointer-events-none"
-              >
-                <div className="w-full h-full flex items-center justify-center">
-                  <div
-                    className="transition-all duration-200"
-                    style={{
-                      transform: isActive ? "scale(1.15)" : "scale(1.0)",
-                      color: isActive ? theme.activeIconColor : theme.inactiveIconColor,
-                      filter: isActive
-                        ? "drop-shadow(0 0 12px rgba(255, 255, 255, 0.8)) drop-shadow(0 2px 6px rgba(0,0,0,0.85))"
-                        : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
-                    }}
-                  >
-                    <IconComponent size={22} />
+              {!isNone && (
+                <foreignObject
+                  x={ix - 18}
+                  y={iy - 18}
+                  width={36}
+                  height={36}
+                  className="pointer-events-none"
+                >
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div
+                      className="transition-all duration-200"
+                      style={{
+                        transform: isActive ? "scale(1.15)" : "scale(1.0)",
+                        color: isActive ? theme.activeIconColor : theme.inactiveIconColor,
+                        filter: isActive
+                          ? "drop-shadow(0 0 12px rgba(255, 255, 255, 0.8)) drop-shadow(0 2px 6px rgba(0,0,0,0.85))"
+                          : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
+                      }}
+                    >
+                      <IconComponent size={22} />
+                    </div>
                   </div>
-                </div>
-              </foreignObject>
+                </foreignObject>
+              )}
 
-              {/* Delicate Indicator Dot */}
+              {/* Indicator Dot */}
               <circle
                 cx={dotX}
                 cy={dotY}
-                r={isActive ? 3.0 : 2.0}
+                r={isNone ? 1.5 : isActive ? 3.0 : 2.0}
                 fill={isActive ? theme.activeDotColor : theme.dotColor}
+                fillOpacity={isNone ? 0.25 : 1}
                 style={{
                   transition: "all 180ms ease-out",
-                  filter: isActive ? "drop-shadow(0 0 6px #ffffff)" : "none",
+                  filter: isActive && !isNone ? "drop-shadow(0 0 6px #ffffff)" : "none",
                 }}
               />
             </g>

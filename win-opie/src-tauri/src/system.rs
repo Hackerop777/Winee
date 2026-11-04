@@ -116,3 +116,23 @@ pub fn toggle_audio_mute() -> Result<bool, String> {
 pub fn open_quick_note() {
     let _ = Command::new("notepad.exe").spawn();
 }
+
+pub fn open_default_browser() {
+    let _ = Command::new("cmd").args(["/c", "start", "https://"]).spawn();
+}
+
+pub fn open_terminal() {
+    let _ = Command::new("powershell.exe").spawn();
+}
+
+pub fn open_file_explorer() {
+    let _ = Command::new("explorer.exe").spawn();
+}
+
+pub fn open_task_manager() {
+    let _ = Command::new("taskmgr.exe").spawn();
+}
+
+pub fn lock_workstation() {
+    let _ = Command::new("rundll32.exe").args(["user32.dll,LockWorkStation"]).spawn();
+}

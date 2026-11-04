@@ -152,13 +152,22 @@ pub fn trigger_show_radial() {
             let media_state = get_current_media_state();
 
             if let Some(win) = app.get_webview_window("main") {
+                // Pin window to cover the entire active monitor without taskbar borders or offsets
+                let mon_x = mi.rcMonitor.left;
+                let mon_y = mi.rcMonitor.top;
+                let mon_w = (mi.rcMonitor.right - mi.rcMonitor.left).max(100);
+                let mon_h = (mi.rcMonitor.bottom - mi.rcMonitor.top).max(100);
+
+                let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: mon_x, y: mon_y }));
+                let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: mon_w as u32, height: mon_h as u32 }));
+
                 let payload = ShowPayload {
-                    origin_x: pt.x,
-                    origin_y: pt.y,
-                    monitor_left: mi.rcWork.left,
-                    monitor_top: mi.rcWork.top,
-                    monitor_width: mi.rcWork.right - mi.rcWork.left,
-                    monitor_height: mi.rcWork.bottom - mi.rcWork.top,
+                    origin_x: pt.x - mon_x,
+                    origin_y: pt.y - mon_y,
+                    monitor_left: mon_x,
+                    monitor_top: mon_y,
+                    monitor_width: mon_w,
+                    monitor_height: mon_h,
                     mode: mode.to_string(),
                     files,
                     media: media_state,
