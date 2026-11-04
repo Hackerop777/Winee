@@ -1,9 +1,12 @@
+export type ThemeId = "crystal" | "titanium" | "coral" | "graphite";
+
 export interface ThemeConfig {
-  id: "coral" | "graphite";
+  id: ThemeId;
   name: string;
   glassBg: string;
   glassBorder: string;
   specularHighlight: string;
+  hubBg: string;
   hubBorder: string;
   hubGlow: string;
   activeSectorGlow: string;
@@ -16,39 +19,77 @@ export interface ThemeConfig {
   bubbleBorder: string;
 }
 
-export const THEMES: Record<"coral" | "graphite", ThemeConfig> = {
+export const THEMES: Record<ThemeId, ThemeConfig> = {
+  crystal: {
+    id: "crystal",
+    name: "Apple Frosted Crystal (Pure Liquid Glass)",
+    glassBg: "rgba(255, 255, 255, 0.08)",
+    glassBorder: "rgba(255, 255, 255, 0.45)",
+    specularHighlight: "rgba(255, 255, 255, 0.85)",
+    hubBg: "rgba(20, 22, 28, 0.45)",
+    hubBorder: "rgba(255, 255, 255, 0.45)",
+    hubGlow: "rgba(255, 255, 255, 0.20)",
+    activeSectorGlow: "rgba(255, 255, 255, 0.22)",
+    activeIconColor: "#ffffff",
+    inactiveIconColor: "rgba(255, 255, 255, 0.75)",
+    radialDivider: "rgba(255, 255, 255, 0.16)",
+    dotColor: "rgba(255, 255, 255, 0.35)",
+    activeDotColor: "#ffffff",
+    bubbleBg: "rgba(255, 255, 255, 0.12)",
+    bubbleBorder: "rgba(255, 255, 255, 0.40)",
+  },
+  titanium: {
+    id: "titanium",
+    name: "Dark Titanium Smoke (Obsidian Glass)",
+    glassBg: "rgba(15, 17, 23, 0.35)",
+    glassBorder: "rgba(255, 255, 255, 0.30)",
+    specularHighlight: "rgba(255, 255, 255, 0.70)",
+    hubBg: "rgba(10, 12, 16, 0.60)",
+    hubBorder: "rgba(255, 255, 255, 0.35)",
+    hubGlow: "rgba(255, 255, 255, 0.12)",
+    activeSectorGlow: "rgba(255, 255, 255, 0.16)",
+    activeIconColor: "#ffffff",
+    inactiveIconColor: "rgba(255, 255, 255, 0.65)",
+    radialDivider: "rgba(255, 255, 255, 0.12)",
+    dotColor: "rgba(255, 255, 255, 0.30)",
+    activeDotColor: "#ffffff",
+    bubbleBg: "rgba(20, 22, 28, 0.40)",
+    bubbleBorder: "rgba(255, 255, 255, 0.30)",
+  },
   coral: {
     id: "coral",
-    name: "Warm Coral Liquid Glass (Reference Style)",
-    glassBg: "rgba(50, 24, 30, 0.58)",
-    glassBorder: "rgba(255, 215, 200, 0.32)",
-    specularHighlight: "rgba(255, 240, 230, 0.45)",
-    hubBorder: "rgba(251, 146, 60, 0.90)",
-    hubGlow: "rgba(251, 146, 60, 0.55)",
-    activeSectorGlow: "rgba(249, 115, 22, 0.40)",
-    activeIconColor: "#fef08a",
-    inactiveIconColor: "#ffffff",
+    name: "Warm Sunset Frosted Glass",
+    glassBg: "rgba(42, 20, 26, 0.28)",
+    glassBorder: "rgba(255, 220, 210, 0.40)",
+    specularHighlight: "rgba(255, 240, 230, 0.75)",
+    hubBg: "rgba(28, 14, 18, 0.50)",
+    hubBorder: "rgba(255, 255, 255, 0.40)",
+    hubGlow: "rgba(255, 200, 180, 0.20)",
+    activeSectorGlow: "rgba(255, 255, 255, 0.20)",
+    activeIconColor: "#ffffff",
+    inactiveIconColor: "rgba(255, 255, 255, 0.75)",
     radialDivider: "rgba(255, 255, 255, 0.16)",
-    dotColor: "rgba(255, 255, 255, 0.38)",
-    activeDotColor: "#f59e0b",
-    bubbleBg: "rgba(38, 18, 24, 0.82)",
-    bubbleBorder: "rgba(251, 146, 60, 0.50)",
+    dotColor: "rgba(255, 255, 255, 0.35)",
+    activeDotColor: "#ffffff",
+    bubbleBg: "rgba(42, 20, 26, 0.35)",
+    bubbleBorder: "rgba(255, 220, 210, 0.35)",
   },
   graphite: {
     id: "graphite",
-    name: "Cool Graphite Liquid Glass (Windows 11 Fluent)",
-    glassBg: "rgba(14, 20, 32, 0.64)",
-    glassBorder: "rgba(186, 230, 253, 0.30)",
-    specularHighlight: "rgba(224, 242, 254, 0.45)",
-    hubBorder: "rgba(56, 189, 248, 0.90)",
-    hubGlow: "rgba(56, 189, 248, 0.55)",
-    activeSectorGlow: "rgba(14, 165, 233, 0.40)",
-    activeIconColor: "#38bdf8",
-    inactiveIconColor: "#ffffff",
+    name: "Cool Frost Liquid Glass",
+    glassBg: "rgba(16, 22, 34, 0.28)",
+    glassBorder: "rgba(210, 235, 255, 0.40)",
+    specularHighlight: "rgba(230, 245, 255, 0.75)",
+    hubBg: "rgba(12, 16, 26, 0.50)",
+    hubBorder: "rgba(255, 255, 255, 0.40)",
+    hubGlow: "rgba(200, 230, 255, 0.20)",
+    activeSectorGlow: "rgba(255, 255, 255, 0.20)",
+    activeIconColor: "#ffffff",
+    inactiveIconColor: "rgba(255, 255, 255, 0.75)",
     radialDivider: "rgba(255, 255, 255, 0.16)",
-    dotColor: "rgba(255, 255, 255, 0.38)",
-    activeDotColor: "#38bdf8",
-    bubbleBg: "rgba(12, 16, 26, 0.82)",
-    bubbleBorder: "rgba(56, 189, 248, 0.50)",
+    dotColor: "rgba(255, 255, 255, 0.35)",
+    activeDotColor: "#ffffff",
+    bubbleBg: "rgba(16, 22, 34, 0.35)",
+    bubbleBorder: "rgba(210, 235, 255, 0.35)",
   },
 };

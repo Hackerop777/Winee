@@ -56,15 +56,21 @@ export const ContextBubbles: React.FC<ContextBubblesProps> = ({
               className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 group-hover:scale-110 shadow-xl"
               style={{
                 backgroundColor: theme.bubbleBg,
-                border: `1.5px solid ${theme.bubbleBorder}`,
-                boxShadow: `0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.25)`,
-                backdropFilter: "blur(24px) saturate(180%)",
+                border: `1px solid ${theme.bubbleBorder}`,
+                boxShadow: `
+                  inset 1.5px 1.5px 1px 0 rgba(255, 255, 255, 0.65),
+                  inset -1px -1px 1px 0 rgba(255, 255, 255, 0.25),
+                  inset 0 0 10px 1px rgba(255, 255, 255, 0.10),
+                  0 8px 24px rgba(0, 0, 0, 0.45)
+                `,
+                backdropFilter: "blur(28px) saturate(180%) contrast(108%)",
+                WebkitBackdropFilter: "blur(28px) saturate(180%) contrast(108%)",
               }}
               title={action.label}
             >
               <action.icon
                 size={18}
-                className="text-white group-hover:text-amber-300 transition-colors drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
+                className="text-white group-hover:scale-110 transition-all drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]"
               />
             </div>
             {/* Tooltip Label */}

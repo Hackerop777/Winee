@@ -258,19 +258,31 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Apple's Liquid Glass Backing Layer: Translucent Depth + Custom Blur + Specular Rim */}
+      {/* 1. Multi-Layer Physical Liquid Glass Backing Layer (Apple-grade Depth & Frost) */}
       <div
         className="absolute inset-0 pointer-events-none rounded-full"
         style={{
-          width: `${(R_OUTER + BULGE_DELTA + 4) * 2}px`,
-          height: `${(R_OUTER + BULGE_DELTA + 4) * 2}px`,
+          width: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
+          height: `${(R_OUTER + BULGE_DELTA + 2) * 2}px`,
           left: "50%",
           top: "50%",
           transform: "translate(-50%, -50%)",
-          backdropFilter: `blur(${glassBlur}px) saturate(190%) contrast(105%)`,
-          WebkitBackdropFilter: `blur(${glassBlur}px) saturate(190%) contrast(105%)`,
-          boxShadow: `inset 0 1.5px 2px rgba(255, 255, 255, 0.35), inset 0 -2px 4px rgba(0, 0, 0, 0.4), 0 24px 64px rgba(0, 0, 0, 0.65)`,
+          backdropFilter: `blur(${glassBlur}px) saturate(180%) contrast(108%) brightness(104%)`,
+          WebkitBackdropFilter: `blur(${glassBlur}px) saturate(180%) contrast(108%) brightness(104%)`,
           background: theme.glassBg,
+          boxShadow: `
+            inset 2px -2px 1.5px -1px rgba(255, 255, 255, 0.9),
+            inset -2px 2px 1.5px -1px rgba(255, 255, 255, 0.9),
+            inset 6px -6px 2px -5px rgba(255, 255, 255, 0.55),
+            inset -6px 6px 2px -5px rgba(255, 255, 255, 0.55),
+            inset 0 0 28px 2px rgba(255, 255, 255, 0.15),
+            inset 0 0 2px 1px rgba(255, 255, 255, 0.65),
+            inset 0 4px 20px rgba(0, 0, 0, 0.12),
+            inset 0 8px 36px rgba(0, 0, 0, 0.18),
+            0 24px 64px rgba(0, 0, 0, 0.55),
+            0 6px 20px rgba(0, 0, 0, 0.3)
+          `,
+          border: `1px solid ${theme.glassBorder}`,
         }}
       />
 
@@ -280,14 +292,23 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         viewBox={`-${half} -${half} ${size} ${size}`}
         className="relative z-10 overflow-visible"
         style={{
-          filter: "drop-shadow(0 20px 48px rgba(0, 0, 0, 0.55))",
+          filter: "drop-shadow(0 16px 40px rgba(0, 0, 0, 0.45))",
         }}
       >
         <defs>
-          {/* Directional Specular Reflection Lighting Gradient */}
+          {/* Directional 3D Specular Reflection Rim Gradient */}
           <linearGradient id="specularRim" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
-            <stop offset="45%" stopColor="#ffffff" stopOpacity="0.18" />
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
+            <stop offset="35%" stopColor="#ffffff" stopOpacity="0.40" />
+            <stop offset="70%" stopColor="#ffffff" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.55" />
+          </linearGradient>
+
+          {/* Translucent Pure Glass Sheen Gradient */}
+          <linearGradient id="glassSheenGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.14" />
+            <stop offset="30%" stopColor="#ffffff" stopOpacity="0.04" />
+            <stop offset="70%" stopColor="#ffffff" stopOpacity="0.01" />
             <stop offset="100%" stopColor="#ffffff" stopOpacity="0.08" />
           </linearGradient>
 
@@ -297,10 +318,11 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
               id="activeSectorGlowGrad"
               cx={Math.cos(activeSliceIndex * WEDGE_ANGLE) * 120}
               cy={Math.sin(activeSliceIndex * WEDGE_ANGLE) * 120}
-              r="90"
+              r="100"
               gradientUnits="userSpaceOnUse"
             >
               <stop offset="0%" stopColor={theme.activeSectorGlow} stopOpacity="1" />
+              <stop offset="65%" stopColor={theme.activeSectorGlow} stopOpacity="0.3" />
               <stop offset="100%" stopColor="transparent" stopOpacity="0" />
             </radialGradient>
           )}
@@ -312,27 +334,35 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
           </radialGradient>
         </defs>
 
-        {/* 1. Single Continuous Translucent Glass Disc Surface */}
+        {/* 2. Single Continuous Translucent Glass Disc Surface with Pure Glass Sheen */}
         <path
           d={discPath}
-          fill={theme.glassBg}
+          fill="url(#glassSheenGrad)"
           stroke="url(#specularRim)"
-          strokeWidth="1.4"
+          strokeWidth="1.5"
           style={{
-            backdropFilter: `blur(${glassBlur}px) saturate(190%)`,
-            WebkitBackdropFilter: `blur(${glassBlur}px) saturate(190%)`,
-            transition: "d 180ms cubic-bezier(0.16, 1, 0.3, 1), fill 200ms ease",
+            transition: "d 180ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         />
 
-        {/* 2. Active Sector Highlight Layer with Fluid Bulge */}
+        {/* Inner Glass Lens Bevel Ring */}
+        <circle
+          cx="0"
+          cy="0"
+          r={R_INNER}
+          fill="none"
+          stroke="url(#specularRim)"
+          strokeWidth="1.2"
+          strokeOpacity="0.6"
+        />
+
+        {/* 3. Active Sector Highlight Layer with Fluid Droplet Expansion */}
         {activeWedgePath && (
           <path
             d={activeWedgePath}
             fill="url(#activeSectorGlowGrad)"
-            stroke={theme.activeIconColor}
-            strokeWidth="0.8"
-            strokeOpacity="0.4"
+            stroke="rgba(255, 255, 255, 0.55)"
+            strokeWidth="1.0"
             className="animate-in fade-in duration-100"
           />
         )}
@@ -408,8 +438,8 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
                       transform: isActive ? "scale(1.15)" : "scale(1.0)",
                       color: isActive ? theme.activeIconColor : theme.inactiveIconColor,
                       filter: isActive
-                        ? `drop-shadow(0 0 10px ${theme.activeIconColor}) drop-shadow(0 2px 4px rgba(0,0,0,0.8))`
-                        : "drop-shadow(0 1px 3px rgba(0,0,0,0.6))",
+                        ? "drop-shadow(0 0 12px rgba(255, 255, 255, 0.8)) drop-shadow(0 2px 6px rgba(0,0,0,0.85))"
+                        : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
                     }}
                   >
                     <IconComponent size={22} />
@@ -425,7 +455,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
                 fill={isActive ? theme.activeDotColor : theme.dotColor}
                 style={{
                   transition: "all 180ms ease-out",
-                  filter: isActive ? `drop-shadow(0 0 4px ${theme.activeDotColor})` : "none",
+                  filter: isActive ? "drop-shadow(0 0 6px #ffffff)" : "none",
                 }}
               />
             </g>

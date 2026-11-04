@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { RadialMenu } from "./RadialMenu";
-import { THEMES } from "../types/theme";
+import { THEMES, ThemeId } from "../types/theme";
 
 export interface SettingsConfig {
   shortcut: string;
@@ -25,7 +25,7 @@ export interface SettingsConfig {
   stiffness: number;
   damping: number;
   glassBlur: number; // 0 to 100
-  themeId: "coral" | "graphite";
+  themeId: ThemeId;
 }
 
 const DEFAULT_SETTINGS: SettingsConfig = {
@@ -37,8 +37,8 @@ const DEFAULT_SETTINGS: SettingsConfig = {
   outerRadius: 166,
   stiffness: 420,
   damping: 26,
-  glassBlur: 28,
-  themeId: "coral",
+  glassBlur: 36,
+  themeId: "crystal",
 };
 
 interface SettingsModalProps {
@@ -100,7 +100,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentTheme = THEMES[settings.themeId || "coral"] || THEMES.coral;
+  const currentTheme = THEMES[settings.themeId || "crystal"] || THEMES.crystal;
 
   return (
     <div
@@ -270,36 +270,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* Visual Glass Theme Selector */}
                 <div className="space-y-1.5 pb-3 border-b border-white/10">
                   <label className="text-xs font-medium text-neutral-200">
-                    Glass Theme & Luminous Glow
+                    Premium Liquid Glass Theme
                   </label>
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
-                      onClick={() => handleUpdate({ themeId: "coral" })}
+                      onClick={() => handleUpdate({ themeId: "crystal" })}
                       className={`p-3 rounded-xl flex items-center space-x-2.5 text-left border transition-all ${
-                        settings.themeId === "coral"
-                          ? "bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-950/40"
+                        settings.themeId === "crystal"
+                          ? "bg-white/15 border-white text-white shadow-xl shadow-white/10"
                           : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
                       }`}
                     >
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-orange-600 to-amber-300 border border-amber-200/50 shadow-sm" />
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-white/30 to-white/90 border border-white/80 shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
                       <div>
-                        <div className="text-xs font-semibold">Warm Coral Liquid Glass</div>
-                        <div className="text-[10px] text-neutral-400">Reference Amber Glow</div>
+                        <div className="text-xs font-semibold">Apple Frosted Crystal</div>
+                        <div className="text-[10px] text-neutral-400">Pure Translucent Liquid Glass</div>
                       </div>
                     </button>
 
                     <button
-                      onClick={() => handleUpdate({ themeId: "graphite" })}
+                      onClick={() => handleUpdate({ themeId: "titanium" })}
                       className={`p-3 rounded-xl flex items-center space-x-2.5 text-left border transition-all ${
-                        settings.themeId === "graphite"
-                          ? "bg-sky-500/20 border-sky-400 text-white shadow-lg shadow-sky-950/40"
+                        settings.themeId === "titanium"
+                          ? "bg-white/15 border-white text-white shadow-xl shadow-white/10"
                           : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
                       }`}
                     >
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-sky-600 to-cyan-300 border border-sky-200/50 shadow-sm" />
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-neutral-900 to-neutral-400 border border-neutral-300/60 shadow-sm" />
                       <div>
-                        <div className="text-xs font-semibold">Cool Graphite Liquid Glass</div>
-                        <div className="text-[10px] text-neutral-400">Windows 11 Fluent Blue</div>
+                        <div className="text-xs font-semibold">Dark Titanium Smoke</div>
+                        <div className="text-[10px] text-neutral-400">Obsidian Frosted Quartz</div>
                       </div>
                     </button>
                   </div>

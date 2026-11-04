@@ -39,20 +39,26 @@ export const App: React.FC = () => {
   const [settings, setSettings] = useState<SettingsConfig>(() => {
     try {
       const saved = localStorage.getItem("winee_settings");
-      return saved
-        ? JSON.parse(saved)
-        : {
-            shortcut: "Ctrl+Space",
-            autostart: false,
-            soundEnabled: true,
-            soundVolume: 60,
-            deadzoneRadius: 64,
-            outerRadius: 166,
-            stiffness: 420,
-            damping: 26,
-            glassBlur: 28,
-            themeId: "coral",
-          };
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Migrate old themes to crystal if previously saved as coral
+        if (parsed.themeId === "coral" || parsed.themeId === "graphite") {
+          parsed.themeId = "crystal";
+        }
+        return parsed;
+      }
+      return {
+        shortcut: "Ctrl+Space",
+        autostart: false,
+        soundEnabled: true,
+        soundVolume: 60,
+        deadzoneRadius: 64,
+        outerRadius: 166,
+        stiffness: 420,
+        damping: 26,
+        glassBlur: 36,
+        themeId: "crystal",
+      };
     } catch {
       return {
         shortcut: "Ctrl+Space",
@@ -63,13 +69,13 @@ export const App: React.FC = () => {
         outerRadius: 166,
         stiffness: 420,
         damping: 26,
-        glassBlur: 28,
-        themeId: "coral",
+        glassBlur: 36,
+        themeId: "crystal",
       };
     }
   });
 
-  const currentTheme = THEMES[settings.themeId || "coral"] || THEMES.coral;
+  const currentTheme = THEMES[settings.themeId || "crystal"] || THEMES.crystal;
 
   // Polar coordinate tracking with custom deadzone
   const { polar, updateCoords, resetCoords } = usePolarCoords(settings.deadzoneRadius || 64);
@@ -100,7 +106,7 @@ export const App: React.FC = () => {
   }, [resetCoords, settings.soundEnabled]);
 
   const handleThemeToggle = useCallback(() => {
-    const nextTheme: "coral" | "graphite" = settings.themeId === "coral" ? "graphite" : "coral";
+    const nextTheme: "crystal" | "titanium" = settings.themeId === "crystal" ? "titanium" : "crystal";
     const next: SettingsConfig = { ...settings, themeId: nextTheme };
     setSettings(next);
     localStorage.setItem("winee_settings", JSON.stringify(next));
