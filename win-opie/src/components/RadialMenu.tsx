@@ -284,7 +284,9 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
       : null;
 
   const activeLabel =
-    activeSlice && activeSlice.actionId !== "none"
+    activeTier2Index !== null && activeSlice?.children?.[activeTier2Index]
+      ? activeSlice.children[activeTier2Index].label
+      : activeSlice && activeSlice.actionId !== "none"
       ? activeSlice.label
       : null;
 

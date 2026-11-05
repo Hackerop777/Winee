@@ -90,11 +90,12 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
               onSelectChild?.(idx, child);
             }}
             onMouseEnter={() => onHoverChild?.(idx)}
-            className="cursor-pointer group"
+            className="cursor-pointer group pointer-events-auto"
           >
             {/* Sector Glass Fill */}
             <path
               d={wedgePath}
+              className="pointer-events-auto"
               fill={isActive ? theme.activeSectorGlow : theme.glassBg}
               stroke={isActive ? "rgba(255, 255, 255, 0.85)" : theme.glassBorder}
               strokeWidth={isActive ? 1.5 : 1}

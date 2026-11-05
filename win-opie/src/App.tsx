@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { RadialMenu } from "./components/RadialMenu";
@@ -100,8 +100,14 @@ export const App: React.FC = () => {
   });
 
   const [activeTier2Index, setActiveTier2Index] = useState<number | null>(null);
+  const activeTier2Ref = useRef<number | null>(null);
+  activeTier2Ref.current = activeTier2Index;
+
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<{ node: ActionNode; parentIndex: number; childIndex?: number } | null>(null);
+
+  const actionTreeRef = useRef<ActionNode[]>(actionTree);
+  actionTreeRef.current = actionTree;
 
   const handleSaveActionTree = useCallback((newTree: ActionNode[]) => {
     setActionTree(newTree);
@@ -119,6 +125,8 @@ export const App: React.FC = () => {
 
   // Polar coordinate tracking with custom deadzone
   const { polar, updateCoords, resetCoords } = usePolarCoords(settings.deadzoneRadius || 64);
+  const activeSliceRef = useRef<number | null>(null);
+  activeSliceRef.current = polar.activeSliceIndex;
 
   // Second-order spring animation for menu scale
   const springScale = useSpringValue(isOpen ? 1.0 : 0.0, {
@@ -137,6 +145,7 @@ export const App: React.FC = () => {
       sounds.play("button-release.wav", 0.4);
     }
     setIsOpen(false);
+    setActiveTier2Index(null);
     resetCoords();
     try {
       await invoke("hide_window");
@@ -338,6 +347,7 @@ export const App: React.FC = () => {
       setFiles(payload.files || []);
       setMedia(payload.media);
       resetCoords();
+      setActiveTier2Index(null);
       setIsSettingsOpen(false);
       setIsOpen(true);
 
@@ -357,6 +367,16 @@ export const App: React.FC = () => {
 
     const unlistenDispatch = listen<number>("opie-dispatch", (event) => {
       const idx = event.payload;
+      const t2 = activeTier2Ref.current;
+      const sliceIdx = activeSliceRef.current ?? idx;
+      const parent = actionTreeRef.current[sliceIdx];
+
+      // If user was hovering a sub-arc option in Tier 2, dispatch that child action!
+      if (t2 !== null && parent?.children?.[t2]) {
+        handleSelectChild(t2, parent.children[t2]);
+        return;
+      }
+
       const customActionId =
         mode === "default"
           ? (settings.customSlots && settings.customSlots[idx]) || DEFAULT_WHEEL_SLOTS[idx] || "none"
@@ -385,14 +405,46 @@ export const App: React.FC = () => {
       unlistenDispatch.then((f) => f());
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleClose, handleSelectSlice, isSettingsOpen, resetCoords, settings.soundEnabled]);
+  }, [handleClose, handleSelectSlice, handleSelectChild, isSettingsOpen, resetCoords, settings.soundEnabled]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!isOpen || isSettingsOpen) return;
-      updateCoords(e.clientX, e.clientY, origin.x, origin.y);
+      const currentSlice = polar.activeSliceIndex !== null ? actionTree[polar.activeSliceIndex] : null;
+      const hasActiveSubmenu = !!(currentSlice && currentSlice.children && currentSlice.children.length > 0);
+
+      updateCoords(e.clientX, e.clientY, origin.x, origin.y, hasActiveSubmenu);
+
+      // Sub-arc geometric tracking for seamless selection in expanded sub-menus
+      const dx = e.clientX - origin.x;
+      const dy = e.clientY - origin.y;
+      const r = Math.sqrt(dx * dx + dy * dy);
+
+      if (r > 168 && hasActiveSubmenu && currentSlice && currentSlice.children) {
+        const count = currentSlice.children.length;
+        const anglePerItem = Math.min((30 * Math.PI) / 180, (150 * Math.PI) / (180 * Math.max(1, count)));
+        const totalSpan = count * anglePerItem;
+        const parentMidAngle = (polar.activeSliceIndex ?? 0) * ((2 * Math.PI) / 8);
+
+        let theta = Math.atan2(dy, dx);
+        if (theta < 0) theta += 2 * Math.PI;
+
+        let diff = theta - parentMidAngle;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+
+        const startAngleRel = -totalSpan / 2;
+        const relAngle = diff - startAngleRel;
+
+        if (relAngle >= 0 && relAngle <= totalSpan) {
+          const childIdx = Math.min(count - 1, Math.max(0, Math.floor(relAngle / anglePerItem)));
+          setActiveTier2Index(childIdx);
+        }
+      } else if (r <= 168) {
+        setActiveTier2Index(null);
+      }
     },
-    [isOpen, isSettingsOpen, origin.x, origin.y, updateCoords]
+    [isOpen, isSettingsOpen, origin.x, origin.y, updateCoords, polar.activeSliceIndex, actionTree]
   );
 
   // When inactive and closed, unmount DOM tree to ensure negligible widget idle power
