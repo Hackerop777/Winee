@@ -257,6 +257,13 @@ export const App: React.FC = () => {
 
       setIsOpen(false);
       resetCoords();
+      setActiveTier2Index(null);
+      setActiveTier3Index(null);
+
+      // Hide window immediately so the desktop or target app gets foreground focus before action triggers
+      try {
+        await invoke("hide_window");
+      } catch (_) {}
 
       try {
         await invoke("execute_radial_action", {
@@ -268,10 +275,6 @@ export const App: React.FC = () => {
         });
       } catch (err) {
         console.error("Action execution error:", err);
-      } finally {
-        try {
-          await invoke("hide_window");
-        } catch (_) {}
       }
     },
     [mode, files, resetCoords, settings.soundEnabled, settings.customSlots, handleClose]
@@ -535,7 +538,7 @@ export const App: React.FC = () => {
       const dy = e.clientY - origin.y;
       const r = Math.sqrt(dx * dx + dy * dy);
 
-      // Multi-tier polar ray-casting
+      // Multi-tier polar ray-casting with boundary locks
       if (r > 168 && hasActiveSubmenu && currentSlice && currentSlice.children) {
         const count2 = currentSlice.children.length;
         const anglePerItem2 = Math.min((30 * Math.PI) / 180, (150 * Math.PI) / (180 * Math.max(1, count2)));
@@ -545,24 +548,44 @@ export const App: React.FC = () => {
         let theta = Math.atan2(dy, dx);
         if (theta < 0) theta += 2 * Math.PI;
 
-        let diff2 = theta - parentMidAngle;
-        while (diff2 > Math.PI) diff2 -= 2 * Math.PI;
-        while (diff2 < -Math.PI) diff2 += 2 * Math.PI;
+        const lastT2 = activeTier2Ref.current;
+        const lastT2Child = lastT2 !== null && currentSlice.children[lastT2] ? currentSlice.children[lastT2] : null;
+        const hasActiveTier3 = !!(lastT2Child && lastT2Child.children && lastT2Child.children.length > 0);
 
-        const startAngleRel2 = -totalSpan2 / 2;
-        const relAngle2 = diff2 - startAngleRel2;
+        let effectiveT2Index: number | null = null;
 
-        if (relAngle2 >= 0 && relAngle2 <= totalSpan2) {
-          const childIdx = Math.min(count2 - 1, Math.max(0, Math.floor(relAngle2 / anglePerItem2)));
-          setActiveTier2Index(childIdx);
+        // If cursor is beyond Tier 2 into Tier 3 (r > 254) and active Tier 2 child has a submenu,
+        // LOCK Tier 2 so navigating wide Tier 3 options will NEVER collapse the Tier 3 sub-arc!
+        if (r > 254 && hasActiveTier3 && lastT2 !== null) {
+          effectiveT2Index = lastT2;
+        } else {
+          // Inside Tier 2 zone: calculate Tier 2 ray-casting
+          let diff2 = theta - parentMidAngle;
+          while (diff2 > Math.PI) diff2 -= 2 * Math.PI;
+          while (diff2 < -Math.PI) diff2 += 2 * Math.PI;
 
-          // Check if active Tier 2 child has a Tier 3 sub-arc
-          const tier2Child = currentSlice.children[childIdx];
+          const startAngleRel2 = -totalSpan2 / 2;
+          const relAngle2 = diff2 - startAngleRel2;
+
+          if (relAngle2 >= 0 && relAngle2 <= totalSpan2) {
+            effectiveT2Index = Math.min(count2 - 1, Math.max(0, Math.floor(relAngle2 / anglePerItem2)));
+          } else if (lastT2 !== null) {
+            effectiveT2Index = lastT2;
+          }
+        }
+
+        if (effectiveT2Index !== null) {
+          setActiveTier2Index(effectiveT2Index);
+
+          // Now calculate Tier 3 ray-casting
+          const tier2Child = currentSlice.children[effectiveT2Index];
           if (r > 254 && tier2Child && tier2Child.children && tier2Child.children.length > 0) {
             const count3 = tier2Child.children.length;
             const anglePerItem3 = Math.min((30 * Math.PI) / 180, (150 * Math.PI) / (180 * Math.max(1, count3)));
             const totalSpan3 = count3 * anglePerItem3;
-            const tier2ChildMid = startAngleRel2 + childIdx * anglePerItem2 + anglePerItem2 / 2 + parentMidAngle;
+
+            const startAngleRel2 = -totalSpan2 / 2;
+            const tier2ChildMid = startAngleRel2 + effectiveT2Index * anglePerItem2 + anglePerItem2 / 2 + parentMidAngle;
 
             let diff3 = theta - tier2ChildMid;
             while (diff3 > Math.PI) diff3 -= 2 * Math.PI;
@@ -571,10 +594,9 @@ export const App: React.FC = () => {
             const startAngleRel3 = -totalSpan3 / 2;
             const relAngle3 = diff3 - startAngleRel3;
 
-            if (relAngle3 >= 0 && relAngle3 <= totalSpan3) {
-              const tier3Idx = Math.min(count3 - 1, Math.max(0, Math.floor(relAngle3 / anglePerItem3)));
-              setActiveTier3Index(tier3Idx);
-            }
+            // Clamped ray-casting: dragging cursor all the way to extreme left or right stays selected!
+            const tier3Idx = Math.min(count3 - 1, Math.max(0, Math.floor(relAngle3 / anglePerItem3)));
+            setActiveTier3Index(tier3Idx);
           } else if (r <= 254) {
             setActiveTier3Index(null);
           }

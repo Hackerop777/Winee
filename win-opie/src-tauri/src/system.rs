@@ -35,67 +35,126 @@ pub fn trigger_screen_snip() {
     }
 }
 
-/// Native Windows Copilot activation using Win+C keyboard simulation
+/// Native Windows Copilot Quick View activation using Win+C keyboard simulation
 pub fn trigger_copilot() {
-    unsafe {
-        let vk_c = windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY(0x43);
-        let inputs = [
-            // Win key down
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_LWIN,
-                        wScan: 0,
-                        dwFlags: Default::default(),
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            // C key down
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: vk_c,
-                        wScan: 0,
-                        dwFlags: Default::default(),
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            // C key up
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: vk_c,
-                        wScan: 0,
-                        dwFlags: KEYEVENTF_KEYUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            // Win key up
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_LWIN,
-                        wScan: 0,
-                        dwFlags: KEYEVENTF_KEYUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-        ];
+    std::thread::spawn(|| {
+        // Allow Windows 80ms to restore desktop/foreground focus after Winee hides
+        std::thread::sleep(std::time::Duration::from_millis(80));
 
-        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-    }
+        unsafe {
+            let key_ctrl = windows::Win32::UI::Input::KeyboardAndMouse::VK_CONTROL;
+            let key_menu = windows::Win32::UI::Input::KeyboardAndMouse::VK_MENU;
+            let key_shift = windows::Win32::UI::Input::KeyboardAndMouse::VK_SHIFT;
+            let key_win = windows::Win32::UI::Input::KeyboardAndMouse::VK_LWIN;
+            let vk_c = windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY(0x43);
+
+            // 1. Release any held modifier keys from the Winee shortcut trigger (Ctrl+Space)
+            let release_modifiers = [
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: key_ctrl,
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: key_menu,
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: key_shift,
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+            ];
+            SendInput(&release_modifiers, std::mem::size_of::<INPUT>() as i32);
+
+            std::thread::sleep(std::time::Duration::from_millis(40));
+
+            // 2. Win Key Down
+            let win_down = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: key_win,
+                        wScan: 0,
+                        dwFlags: Default::default(),
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+            SendInput(&win_down, std::mem::size_of::<INPUT>() as i32);
+            std::thread::sleep(std::time::Duration::from_millis(30));
+
+            // 3. C Key Down
+            let c_down = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: vk_c,
+                        wScan: 0,
+                        dwFlags: Default::default(),
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+            SendInput(&c_down, std::mem::size_of::<INPUT>() as i32);
+            std::thread::sleep(std::time::Duration::from_millis(30));
+
+            // 4. C Key Up
+            let c_up = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: vk_c,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+            SendInput(&c_up, std::mem::size_of::<INPUT>() as i32);
+            std::thread::sleep(std::time::Duration::from_millis(30));
+
+            // 5. Win Key Up
+            let win_up = [INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: key_win,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            }];
+            SendInput(&win_up, std::mem::size_of::<INPUT>() as i32);
+        }
+    });
 }
 
 pub fn open_clipboard_history() {
