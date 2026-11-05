@@ -16,32 +16,100 @@ static IS_PAUSED: AtomicBool = AtomicBool::new(false);
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const APP_NAME: &str = "WinOpie";
 
+fn get_startup_shortcut_path() -> Option<std::path::PathBuf> {
+    std::env::var_os("APPDATA").map(|appdata| {
+        std::path::PathBuf::from(appdata)
+            .join(r"Microsoft\Windows\Start Menu\Programs\Startup\WINEE.lnk")
+    })
+}
+
+fn create_shortcut(target_exe: &std::path::Path, shortcut_path: &std::path::Path) -> Result<(), String> {
+    use windows::core::{Interface, PCWSTR};
+    use windows::Win32::System::Com::IPersistFile;
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
+    };
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+        let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)
+            .map_err(|e| format!("Failed to create IShellLink instance: {e}"))?;
+
+        let exe_str = target_exe.to_string_lossy().to_string();
+        let wide_exe: Vec<u16> = format!("{}\0", exe_str).encode_utf16().collect();
+        shell_link
+            .SetPath(PCWSTR(wide_exe.as_ptr()))
+            .map_err(|e| format!("Failed to set shortcut path: {e}"))?;
+
+        if let Some(parent) = target_exe.parent() {
+            let parent_str = parent.to_string_lossy().to_string();
+            let wide_dir: Vec<u16> = format!("{}\0", parent_str).encode_utf16().collect();
+            let _ = shell_link.SetWorkingDirectory(PCWSTR(wide_dir.as_ptr()));
+        }
+
+        let desc: Vec<u16> = "WINEE Radial Quick Actions\0".encode_utf16().collect();
+        let _ = shell_link.SetDescription(PCWSTR(desc.as_ptr()));
+
+        let persist_file: IPersistFile = shell_link
+            .cast()
+            .map_err(|e| format!("Failed to query IPersistFile: {e}"))?;
+
+        let link_str = shortcut_path.to_string_lossy().to_string();
+        let wide_link: Vec<u16> = format!("{}\0", link_str).encode_utf16().collect();
+        persist_file
+            .Save(PCWSTR(wide_link.as_ptr()), true)
+            .map_err(|e| format!("Failed to save shortcut .lnk file: {e}"))?;
+
+        Ok(())
+    }
+}
+
 pub fn is_autostart_enabled() -> bool {
+    // 1. Check if safe startup shortcut exists
+    if let Some(shortcut) = get_startup_shortcut_path() {
+        if shortcut.exists() {
+            return true;
+        }
+    }
+    // 2. Check legacy registry key and remove if found (prevent Defender heuristic persistence trigger)
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     if let Ok(key) = hkcu.open_subkey_with_flags(RUN_KEY, KEY_READ) {
-        let val: Result<String, _> = key.get_value(APP_NAME);
-        return val.is_ok();
+        if let Ok(val) = key.get_value::<String, _>(APP_NAME) {
+            if !val.is_empty() {
+                return true;
+            }
+        }
     }
     false
 }
 
 #[tauri::command]
 fn set_autostart(enable: bool) -> Result<bool, String> {
+    // Always clean up legacy registry keys to prevent Windows Defender false positives
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(key) = hkcu.open_subkey_with_flags(RUN_KEY, KEY_WRITE) {
+        let _ = key.delete_value(APP_NAME);
+        let _ = key.delete_value("WINEE");
+    }
+
+    let shortcut_path = get_startup_shortcut_path()
+        .ok_or_else(|| "Could not locate Windows Startup folder".to_string())?;
+
     if enable {
-        let key = hkcu
-            .open_subkey_with_flags(RUN_KEY, KEY_WRITE)
-            .map_err(|e| format!("Failed to open registry key: {e}"))?;
         let current_exe = std::env::current_exe()
-            .map_err(|e| format!("Failed to get exe path: {e}"))?
-            .to_string_lossy()
-            .to_string();
-        key.set_value(APP_NAME, &current_exe)
-            .map_err(|e| format!("Failed to set registry value: {e}"))?;
+            .map_err(|e| format!("Failed to get current executable path: {e}"))?;
+
+        if let Some(parent) = shortcut_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        create_shortcut(&current_exe, &shortcut_path)?;
         Ok(true)
     } else {
-        if let Ok(key) = hkcu.open_subkey_with_flags(RUN_KEY, KEY_WRITE) {
-            let _ = key.delete_value(APP_NAME);
+        if shortcut_path.exists() {
+            let _ = std::fs::remove_file(&shortcut_path);
         }
         Ok(false)
     }

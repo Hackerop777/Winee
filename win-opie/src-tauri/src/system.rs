@@ -251,18 +251,40 @@ pub fn open_quick_note() {
 }
 
 pub fn open_default_browser() {
-    let _ = Command::new("cmd").args(["/c", "start", "https://"]).spawn();
+    let wide_open: Vec<u16> = "open\0".encode_utf16().collect();
+    let wide_url: Vec<u16> = "https://\0".encode_utf16().collect();
+    unsafe {
+        ShellExecuteW(
+            None,
+            PCWSTR(wide_open.as_ptr()),
+            PCWSTR(wide_url.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOW,
+        );
+    }
 }
 
 pub fn open_browser_new_tab() {
-    let _ = Command::new("cmd").args(["/c", "start", "https://"]).spawn();
+    let wide_open: Vec<u16> = "open\0".encode_utf16().collect();
+    let wide_url: Vec<u16> = "https://\0".encode_utf16().collect();
+    unsafe {
+        ShellExecuteW(
+            None,
+            PCWSTR(wide_open.as_ptr()),
+            PCWSTR(wide_url.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOW,
+        );
+    }
 }
 
 pub fn open_browser_new_window() {
-    // Try launching Microsoft Edge or Chrome in new window
-    let res = Command::new("cmd").args(["/c", "start", "msedge", "--new-window"]).spawn();
+    // Try launching Microsoft Edge or Chrome in new window directly without cmd.exe
+    let res = Command::new("msedge.exe").arg("--new-window").spawn();
     if res.is_err() {
-        let _ = Command::new("cmd").args(["/c", "start", "chrome", "--new-window"]).spawn();
+        let _ = Command::new("chrome.exe").arg("--new-window").spawn();
     }
 }
 
@@ -291,19 +313,29 @@ pub fn open_directory(target_path: &str) {
     let _ = Command::new("explorer.exe").arg(&resolved).spawn();
 }
 
-/// Launches a user-customized URL, file, folder, or application
+/// Launches a user-customized URL, file, folder, or application safely via Windows Shell
 pub fn launch_custom(target: &str) {
     let t = target.trim();
     if t.is_empty() {
         return;
     }
 
-    if t.starts_with("http://") || t.starts_with("https://") {
-        let _ = Command::new("cmd").args(["/c", "start", "", t]).spawn();
-    } else if std::path::Path::new(t).is_dir() {
+    if std::path::Path::new(t).is_dir() {
         open_directory(t);
-    } else {
-        let _ = Command::new("cmd").args(["/c", "start", "", t]).spawn();
+        return;
+    }
+
+    let wide_open: Vec<u16> = "open\0".encode_utf16().collect();
+    let wide_target: Vec<u16> = format!("{}\0", t).encode_utf16().collect();
+    unsafe {
+        ShellExecuteW(
+            None,
+            PCWSTR(wide_open.as_ptr()),
+            PCWSTR(wide_target.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOW,
+        );
     }
 }
 
@@ -312,7 +344,9 @@ pub fn open_task_manager() {
 }
 
 pub fn lock_workstation() {
-    let _ = Command::new("rundll32.exe").args(["user32.dll,LockWorkStation"]).spawn();
+    unsafe {
+        let _ = windows::Win32::System::Shutdown::LockWorkStation();
+    }
 }
 
 // Window enumeration callback for active browser tabs
