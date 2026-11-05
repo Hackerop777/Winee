@@ -43,15 +43,17 @@ export const App: React.FC = () => {
       const saved = localStorage.getItem("winee_settings");
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Migrate old themes to crystal if previously saved as coral
         if (parsed.themeId === "coral" || parsed.themeId === "graphite") {
-          parsed.themeId = "crystal";
+          parsed.themeId = "cyberpunk";
         }
         if (!parsed.glassMaterial) {
           parsed.glassMaterial = "liquid";
         }
         if (!parsed.customSlots || !Array.isArray(parsed.customSlots) || parsed.customSlots.length !== 8) {
           parsed.customSlots = DEFAULT_WHEEL_SLOTS;
+        }
+        if (!parsed.menuScale) {
+          parsed.menuScale = 1.0;
         }
         return parsed;
       }
@@ -66,8 +68,9 @@ export const App: React.FC = () => {
         damping: 26,
         glassBlur: 36,
         glassMaterial: "liquid",
-        themeId: "crystal",
+        themeId: "cyberpunk",
         customSlots: DEFAULT_WHEEL_SLOTS,
+        menuScale: 1.0,
       };
     } catch {
       return {
@@ -81,19 +84,35 @@ export const App: React.FC = () => {
         damping: 26,
         glassBlur: 36,
         glassMaterial: "liquid",
-        themeId: "crystal",
+        themeId: "cyberpunk",
         customSlots: DEFAULT_WHEEL_SLOTS,
+        menuScale: 1.0,
       };
     }
   });
 
-  // Action tree supporting multi-tier cascading radial sub-menus
+  // Action tree supporting multi-tier cascading radial sub-menus (strictly 8 root slots)
   const [actionTree, setActionTree] = useState<ActionNode[]>(() => {
     try {
       const stored = localStorage.getItem("winee_action_tree");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Migrate old clipboard actions to copilot
+          const sanitized = parsed.slice(0, 8).map((node: ActionNode) => {
+            if (node.actionId === "clipboard") {
+              return {
+                ...node,
+                label: "Copilot",
+                iconName: "Bot",
+                actionId: "open_copilot",
+                color: "#7c4dff",
+              };
+            }
+            return node;
+          });
+          return sanitized;
+        }
       }
     } catch (_) {}
     return DEFAULT_ACTION_TREE;
@@ -103,6 +122,10 @@ export const App: React.FC = () => {
   const activeTier2Ref = useRef<number | null>(null);
   activeTier2Ref.current = activeTier2Index;
 
+  const [activeTier3Index, setActiveTier3Index] = useState<number | null>(null);
+  const activeTier3Ref = useRef<number | null>(null);
+  activeTier3Ref.current = activeTier3Index;
+
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<{ node: ActionNode; parentIndex: number; childIndex?: number } | null>(null);
 
@@ -110,11 +133,12 @@ export const App: React.FC = () => {
   actionTreeRef.current = actionTree;
 
   const handleSaveActionTree = useCallback((newTree: ActionNode[]) => {
-    setActionTree(newTree);
-    localStorage.setItem("winee_action_tree", JSON.stringify(newTree));
+    const clamped = newTree.slice(0, 8);
+    setActionTree(clamped);
+    localStorage.setItem("winee_action_tree", JSON.stringify(clamped));
   }, []);
 
-  const currentTheme = THEMES[settings.themeId || "crystal"] || THEMES.crystal;
+  const currentTheme = THEMES[settings.themeId || "cyberpunk"] || THEMES.cyberpunk;
 
   // Synchronize OS-level registered hotkey with user settings
   useEffect(() => {
@@ -146,6 +170,7 @@ export const App: React.FC = () => {
     }
     setIsOpen(false);
     setActiveTier2Index(null);
+    setActiveTier3Index(null);
     resetCoords();
     try {
       await invoke("hide_window");
@@ -155,7 +180,9 @@ export const App: React.FC = () => {
   }, [resetCoords, settings.soundEnabled]);
 
   const handleThemeToggle = useCallback(() => {
-    const nextTheme: "crystal" | "titanium" = settings.themeId === "crystal" ? "titanium" : "crystal";
+    const themeKeys = Object.keys(THEMES) as Array<keyof typeof THEMES>;
+    const currIdx = themeKeys.indexOf(settings.themeId);
+    const nextTheme = themeKeys[(currIdx + 1) % themeKeys.length];
     const next: SettingsConfig = { ...settings, themeId: nextTheme };
     setSettings(next);
     localStorage.setItem("winee_settings", JSON.stringify(next));
@@ -180,32 +207,30 @@ export const App: React.FC = () => {
           await invoke("set_autostart", { enable: next }).catch(console.error);
           break;
         }
-        case "snip_window":
-        case "snip_full":
-          handleClose();
-          await invoke("execute_radial_action", { mode: "default", index: 3, files: [] }).catch(console.error);
-          break;
-        case "vol_up":
-        case "vol_down":
-          sounds.play("button-press.wav", 0.5);
-          break;
         case "compress":
         case "data_url":
-          if (files.length > 0) {
-            handleClose();
-            await invoke("execute_radial_action", { mode: "image", index: 5, files }).catch(console.error);
-          }
+        case "snip_window":
+        case "snip_full":
+        case "vol_up":
+        case "vol_down":
+          handleClose();
           break;
         default:
           break;
       }
     },
-    [files, handleClose, handleThemeToggle, settings.autostart, settings.soundEnabled]
+    [handleClose, handleThemeToggle, settings.autostart, settings.soundEnabled]
   );
 
   const handleSelectSlice = useCallback(
-    async (index: number, actionId?: string) => {
-      // Resolve action ID if not passed explicitly (gesture dispatch or legacy call)
+    async (index: number, actionId?: string, nodeOrPath?: ActionNode | string) => {
+      const targetPath =
+        typeof nodeOrPath === "string"
+          ? nodeOrPath
+          : nodeOrPath && typeof nodeOrPath === "object"
+          ? nodeOrPath.path
+          : undefined;
+
       const effectiveActionId =
         actionId !== undefined
           ? actionId
@@ -222,7 +247,7 @@ export const App: React.FC = () => {
         sounds.play("button-press.wav", 0.6);
       }
 
-      // If Settings action: open settings modal!
+      // If Settings action: open settings modal
       if (effectiveActionId === "settings" || (mode === "default" && index === 7 && !effectiveActionId)) {
         setIsOpen(false);
         setIsSettingsOpen(true);
@@ -239,6 +264,7 @@ export const App: React.FC = () => {
           index,
           files,
           actionId: effectiveActionId || null,
+          targetPath: targetPath || null,
         });
       } catch (err) {
         console.error("Action execution error:", err);
@@ -261,8 +287,19 @@ export const App: React.FC = () => {
         handleClose();
         return;
       }
+
+      // If clicking a dynamic browser tab, focus its HWND
+      if (childNode.id.startsWith("tab_") && childNode.path) {
+        const hwndVal = parseInt(childNode.path, 10);
+        if (!isNaN(hwndVal)) {
+          invoke("focus_window", { hwnd: hwndVal }).catch(console.error);
+          handleClose();
+          return;
+        }
+      }
+
       if (childNode.actionId) {
-        handleSelectSlice(0, childNode.actionId);
+        handleSelectSlice(0, childNode.actionId, childNode.path);
         return;
       }
       if (childNode.children && childNode.children.length > 0) {
@@ -276,10 +313,12 @@ export const App: React.FC = () => {
   const handleAddSlice = useCallback(() => {
     const newNode: ActionNode = {
       id: `new_${Date.now()}`,
-      label: "New Action",
-      iconName: "Sparkles",
+      label: "My Action",
+      iconName: "Star",
       type: "action",
-      actionId: "quick_note",
+      actionId: "custom_user_slot",
+      path: "https://",
+      color: "#00e5ff",
     };
     const activeIdx = polar.activeSliceIndex ?? 0;
     setEditingNode({ node: newNode, parentIndex: activeIdx, childIndex: undefined });
@@ -298,10 +337,17 @@ export const App: React.FC = () => {
   const handleDeleteSlice = useCallback(() => {
     const activeIdx = polar.activeSliceIndex;
     if (activeIdx !== null && actionTree[activeIdx]) {
-      const updated = actionTree.filter((_, idx) => idx !== activeIdx);
-      if (updated.length > 0) {
-        handleSaveActionTree(updated);
-      }
+      const updated = [...actionTree];
+      // Reset sector to empty rather than shrinking the 8-wedge wheel
+      updated[activeIdx] = {
+        id: `node_empty_${activeIdx}`,
+        label: "(Empty Slot)",
+        iconName: "MinusCircle",
+        actionId: "none",
+        type: "action",
+        color: "rgba(255, 255, 255, 0.2)",
+      };
+      handleSaveActionTree(updated);
     }
   }, [polar.activeSliceIndex, actionTree, handleSaveActionTree]);
 
@@ -317,9 +363,12 @@ export const App: React.FC = () => {
           newTree[editingNode.parentIndex] = { ...parent, children: newChildren };
         }
       } else if (editingNode.node.id.startsWith("new_")) {
-        newTree.push(updated);
+        // Enforce strictly 8 root slots: configure the target slot
+        const targetIdx = Math.min(7, editingNode.parentIndex);
+        newTree[targetIdx] = updated;
       } else {
-        newTree[editingNode.parentIndex] = updated;
+        const targetIdx = Math.min(7, editingNode.parentIndex);
+        newTree[targetIdx] = updated;
       }
       handleSaveActionTree(newTree);
     },
@@ -335,8 +384,9 @@ export const App: React.FC = () => {
       const rawX = payload.origin_x > 0 ? payload.origin_x / dpr : (window.innerWidth || 1920) / 2;
       const rawY = payload.origin_y > 0 ? payload.origin_y / dpr : (window.innerHeight || 1080) / 2;
 
-      // Safe margin for 420px disc so no edges ever get cut off
-      const margin = 210;
+      // Safe margin responsive to wheel size scale so edges never clip
+      const currentScale = settings.menuScale || 1.0;
+      const margin = 260 * currentScale;
       const viewportW = window.innerWidth || 1920;
       const viewportH = window.innerHeight || 1080;
       const clampedX = Math.max(margin, Math.min(viewportW - margin, rawX));
@@ -348,12 +398,70 @@ export const App: React.FC = () => {
       setMedia(payload.media);
       resetCoords();
       setActiveTier2Index(null);
+      setActiveTier3Index(null);
       setIsSettingsOpen(false);
       setIsOpen(true);
 
       if (settings.soundEnabled) {
         sounds.play("focus-wood.wav", 0.5);
       }
+
+      // Query open browser tabs to dynamically populate the Browser sub-menu
+      invoke<Array<{ hwnd: number; title: string; browser: string }>>("get_browser_tabs")
+        .then((tabs) => {
+          if (tabs && tabs.length > 0) {
+            setActionTree((prev) => {
+              return prev.map((node) => {
+                if (node.id === "node_apps" && node.children) {
+                  const updatedChildren = node.children.map((child) => {
+                    if (child.actionId === "open_browser") {
+                      const maxDisplay = 4;
+                      const tabItems: ActionNode[] = [
+                        { id: "b_new_tab", label: "New Tab", iconName: "Plus", actionId: "browser_new_tab", type: "action", color: "#00e5ff" },
+                        { id: "b_new_win", label: "New Window", iconName: "AppWindow", actionId: "browser_new_window", type: "action", color: "#00ff9d" },
+                      ];
+
+                      tabs.slice(0, maxDisplay).forEach((t, i) => {
+                        tabItems.push({
+                          id: `tab_${t.hwnd}_${i}`,
+                          label: t.title.length > 18 ? `${t.title.slice(0, 16)}...` : t.title,
+                          iconName: "Globe",
+                          actionId: "focus_window",
+                          path: String(t.hwnd),
+                          type: "action",
+                          color: "#ffd600",
+                        });
+                      });
+
+                      if (tabs.length > maxDisplay) {
+                        const remaining = tabs.length - maxDisplay;
+                        tabItems.push({
+                          id: "tab_more",
+                          label: `+${remaining} more tabs`,
+                          iconName: "Globe",
+                          actionId: "open_browser",
+                          type: "action",
+                          color: "#7c4dff",
+                        });
+                      }
+
+                      const updatedNode: ActionNode = {
+                        ...child,
+                        type: "submenu",
+                        children: tabItems,
+                      };
+                      return updatedNode;
+                    }
+                    return child;
+                  });
+                  return { ...node, children: updatedChildren };
+                }
+                return node;
+              });
+            });
+          }
+        })
+        .catch(() => {});
     });
 
     const unlistenSettings = listen("open-settings", () => {
@@ -368,15 +476,23 @@ export const App: React.FC = () => {
     const unlistenDispatch = listen<number>("opie-dispatch", (event) => {
       const idx = event.payload;
       const t2 = activeTier2Ref.current;
+      const t3 = activeTier3Ref.current;
       const sliceIdx = activeSliceRef.current ?? idx;
       const parent = actionTreeRef.current[sliceIdx];
 
-      // If user was hovering a sub-arc option in Tier 2, dispatch that child action!
+      // Tier 3 child execution
+      if (t2 !== null && t3 !== null && parent?.children?.[t2]?.children?.[t3]) {
+        handleSelectChild(t3, parent.children[t2].children[t3]);
+        return;
+      }
+
+      // Tier 2 child execution
       if (t2 !== null && parent?.children?.[t2]) {
         handleSelectChild(t2, parent.children[t2]);
         return;
       }
 
+      // Tier 1 root slice execution
       const customActionId =
         mode === "default"
           ? (settings.customSlots && settings.customSlots[idx]) || DEFAULT_WHEEL_SLOTS[idx] || "none"
@@ -405,7 +521,7 @@ export const App: React.FC = () => {
       unlistenDispatch.then((f) => f());
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleClose, handleSelectSlice, handleSelectChild, isSettingsOpen, resetCoords, settings.soundEnabled]);
+  }, [handleClose, handleSelectSlice, handleSelectChild, isSettingsOpen, resetCoords, settings.soundEnabled, settings.menuScale]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
@@ -415,33 +531,57 @@ export const App: React.FC = () => {
 
       updateCoords(e.clientX, e.clientY, origin.x, origin.y, hasActiveSubmenu);
 
-      // Sub-arc geometric tracking for seamless selection in expanded sub-menus
       const dx = e.clientX - origin.x;
       const dy = e.clientY - origin.y;
       const r = Math.sqrt(dx * dx + dy * dy);
 
+      // Multi-tier polar ray-casting
       if (r > 168 && hasActiveSubmenu && currentSlice && currentSlice.children) {
-        const count = currentSlice.children.length;
-        const anglePerItem = Math.min((30 * Math.PI) / 180, (150 * Math.PI) / (180 * Math.max(1, count)));
-        const totalSpan = count * anglePerItem;
+        const count2 = currentSlice.children.length;
+        const anglePerItem2 = Math.min((30 * Math.PI) / 180, (150 * Math.PI) / (180 * Math.max(1, count2)));
+        const totalSpan2 = count2 * anglePerItem2;
         const parentMidAngle = (polar.activeSliceIndex ?? 0) * ((2 * Math.PI) / 8);
 
         let theta = Math.atan2(dy, dx);
         if (theta < 0) theta += 2 * Math.PI;
 
-        let diff = theta - parentMidAngle;
-        while (diff > Math.PI) diff -= 2 * Math.PI;
-        while (diff < -Math.PI) diff += 2 * Math.PI;
+        let diff2 = theta - parentMidAngle;
+        while (diff2 > Math.PI) diff2 -= 2 * Math.PI;
+        while (diff2 < -Math.PI) diff2 += 2 * Math.PI;
 
-        const startAngleRel = -totalSpan / 2;
-        const relAngle = diff - startAngleRel;
+        const startAngleRel2 = -totalSpan2 / 2;
+        const relAngle2 = diff2 - startAngleRel2;
 
-        if (relAngle >= 0 && relAngle <= totalSpan) {
-          const childIdx = Math.min(count - 1, Math.max(0, Math.floor(relAngle / anglePerItem)));
+        if (relAngle2 >= 0 && relAngle2 <= totalSpan2) {
+          const childIdx = Math.min(count2 - 1, Math.max(0, Math.floor(relAngle2 / anglePerItem2)));
           setActiveTier2Index(childIdx);
+
+          // Check if active Tier 2 child has a Tier 3 sub-arc
+          const tier2Child = currentSlice.children[childIdx];
+          if (r > 254 && tier2Child && tier2Child.children && tier2Child.children.length > 0) {
+            const count3 = tier2Child.children.length;
+            const anglePerItem3 = Math.min((30 * Math.PI) / 180, (150 * Math.PI) / (180 * Math.max(1, count3)));
+            const totalSpan3 = count3 * anglePerItem3;
+            const tier2ChildMid = startAngleRel2 + childIdx * anglePerItem2 + anglePerItem2 / 2 + parentMidAngle;
+
+            let diff3 = theta - tier2ChildMid;
+            while (diff3 > Math.PI) diff3 -= 2 * Math.PI;
+            while (diff3 < -Math.PI) diff3 += 2 * Math.PI;
+
+            const startAngleRel3 = -totalSpan3 / 2;
+            const relAngle3 = diff3 - startAngleRel3;
+
+            if (relAngle3 >= 0 && relAngle3 <= totalSpan3) {
+              const tier3Idx = Math.min(count3 - 1, Math.max(0, Math.floor(relAngle3 / anglePerItem3)));
+              setActiveTier3Index(tier3Idx);
+            }
+          } else if (r <= 254) {
+            setActiveTier3Index(null);
+          }
         }
       } else if (r <= 168) {
         setActiveTier2Index(null);
+        setActiveTier3Index(null);
       }
     },
     [isOpen, isSettingsOpen, origin.x, origin.y, updateCoords, polar.activeSliceIndex, actionTree]
@@ -475,8 +615,9 @@ export const App: React.FC = () => {
           media={media}
           activeSliceIndex={polar.activeSliceIndex}
           activeTier2Index={activeTier2Index}
+          activeTier3Index={activeTier3Index}
           isDeadzone={polar.isDeadzone}
-          scale={springScale}
+          scale={springScale * (settings.menuScale || 1.0)}
           theme={currentTheme}
           glassBlur={settings.glassBlur}
           glassMaterial={settings.glassMaterial}
@@ -493,6 +634,12 @@ export const App: React.FC = () => {
             setActiveTier2Index(childIdx);
             if (childIdx !== null && settings.soundEnabled) {
               sounds.play("ring-switch.wav", 0.4);
+            }
+          }}
+          onHoverTier3={(tier3Idx) => {
+            setActiveTier3Index(tier3Idx);
+            if (tier3Idx !== null && settings.soundEnabled) {
+              sounds.play("ring-switch.wav", 0.35);
             }
           }}
           onCancel={handleClose}

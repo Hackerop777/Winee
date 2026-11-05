@@ -57,6 +57,7 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
   const startAngle = parentMidAngle - totalSpan / 2;
 
   const rMid = (innerRadius + outerRadius) * 0.5;
+  const isCyberpunk = theme.id === "cyberpunk";
 
   return (
     <g className="animate-in fade-in zoom-in-95 duration-200">
@@ -67,6 +68,12 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
 
         const isActive = activeChildIndex === idx;
         const hasSubmenu = (child.children && child.children.length > 0) || child.type === "submenu";
+
+        const neonColor =
+          child.color ||
+          (theme.neonPalette && theme.neonPalette.length > 0
+            ? theme.neonPalette[idx % theme.neonPalette.length]
+            : theme.activeSectorGlow);
 
         const wedgePath = createAnnularSectorPath(0, 0, innerRadius, outerRadius, a1, a2);
 
@@ -82,6 +89,22 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
 
         const IconComponent = getNodeIcon(child.iconName, child.type);
 
+        const sectorStroke = isCyberpunk
+          ? isActive
+            ? neonColor
+            : `${neonColor}88`
+          : isActive
+          ? "rgba(255, 255, 255, 0.85)"
+          : theme.glassBorder;
+
+        const sectorFill = isCyberpunk
+          ? isActive
+            ? `${neonColor}33`
+            : theme.glassBg
+          : isActive
+          ? theme.activeSectorGlow
+          : theme.glassBg;
+
         return (
           <g
             key={child.id || idx}
@@ -96,12 +119,14 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
             <path
               d={wedgePath}
               className="pointer-events-auto"
-              fill={isActive ? theme.activeSectorGlow : theme.glassBg}
-              stroke={isActive ? "rgba(255, 255, 255, 0.85)" : theme.glassBorder}
-              strokeWidth={isActive ? 1.5 : 1}
+              fill={sectorFill}
+              stroke={sectorStroke}
+              strokeWidth={isActive ? 2 : 1.2}
               style={{
                 filter: isActive
-                  ? `drop-shadow(0 0 16px ${theme.activeSectorGlow}) drop-shadow(0 4px 12px rgba(0,0,0,0.5))`
+                  ? `drop-shadow(0 0 16px ${neonColor}) drop-shadow(0 0 4px #ffffff)`
+                  : isCyberpunk
+                  ? `drop-shadow(0 0 6px ${neonColor}44)`
                   : "drop-shadow(0 4px 10px rgba(0,0,0,0.25))",
                 transition: "fill 150ms ease-out, stroke 150ms ease-out",
               }}
@@ -136,9 +161,15 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
                     className="transition-transform duration-150"
                     style={{
                       transform: isActive ? "scale(1.15)" : "scale(1.0)",
-                      color: isActive ? theme.activeIconColor : theme.inactiveIconColor,
+                      color: isActive
+                        ? isCyberpunk
+                          ? neonColor
+                          : theme.activeIconColor
+                        : isCyberpunk
+                        ? "rgba(255, 255, 255, 0.9)"
+                        : theme.inactiveIconColor,
                       filter: isActive
-                        ? "drop-shadow(0 0 10px rgba(255,255,255,0.8))"
+                        ? `drop-shadow(0 0 10px ${neonColor}) drop-shadow(0 0 4px #ffffff)`
                         : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
                     }}
                   >
@@ -154,10 +185,14 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
               y={iy + 15}
               textAnchor="middle"
               className="text-[10px] font-semibold tracking-wide pointer-events-none select-none"
-              fill={isActive ? "#ffffff" : "rgba(255, 255, 255, 0.85)"}
+              fill={isActive ? (isCyberpunk ? neonColor : "#ffffff") : "rgba(255, 255, 255, 0.85)"}
               style={{
                 fontFamily: "system-ui, -apple-system, sans-serif",
-                textShadow: "0 1px 4px rgba(0,0,0,0.9)",
+                textShadow: isActive
+                  ? `0 0 8px ${neonColor}, 0 2px 4px rgba(0,0,0,0.9)`
+                  : "0 1px 4px rgba(0,0,0,0.9)",
+                letterSpacing: isCyberpunk ? "0.04em" : "normal",
+                textTransform: isCyberpunk ? "uppercase" : "none",
               }}
             >
               {child.label.length > 12 ? `${child.label.slice(0, 10)}...` : child.label}
@@ -171,7 +206,7 @@ export const CascadingSubArc: React.FC<CascadingSubArcProps> = ({
               >
                 <polygon
                   points="-4,-4 5,0 -4,4"
-                  fill={isActive ? theme.activeIconColor : "#ffffff"}
+                  fill={isActive ? (isCyberpunk ? neonColor : theme.activeIconColor) : "#ffffff"}
                 />
               </g>
             )}

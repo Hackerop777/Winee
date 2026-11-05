@@ -69,11 +69,22 @@ fn hide_window(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
+fn get_browser_tabs() -> Vec<system::BrowserTabInfo> {
+    system::get_open_browser_tabs()
+}
+
+#[tauri::command]
+fn focus_window(hwnd: isize) {
+    system::focus_browser_window(hwnd);
+}
+
+#[tauri::command]
 async fn execute_radial_action(
     mode: String,
     index: usize,
     files: Vec<String>,
     action_id: Option<String>,
+    target_path: Option<String>,
 ) -> Result<String, String> {
     if let Some(id) = action_id {
         match id.as_str() {
@@ -93,6 +104,10 @@ async fn execute_radial_action(
                 system::trigger_screen_snip();
                 return Ok("Triggered Screen Snip".into());
             }
+            "open_copilot" => {
+                system::trigger_copilot();
+                return Ok("Opened Copilot".into());
+            }
             "quick_note" => {
                 system::open_quick_note();
                 return Ok("Opened Quick Note".into());
@@ -109,6 +124,14 @@ async fn execute_radial_action(
                 system::open_default_browser();
                 return Ok("Opened Browser".into());
             }
+            "browser_new_tab" => {
+                system::open_browser_new_tab();
+                return Ok("Opened New Tab".into());
+            }
+            "browser_new_window" => {
+                system::open_browser_new_window();
+                return Ok("Opened New Window".into());
+            }
             "open_terminal" => {
                 system::open_terminal();
                 return Ok("Opened Terminal".into());
@@ -116,6 +139,16 @@ async fn execute_radial_action(
             "open_explorer" => {
                 system::open_file_explorer();
                 return Ok("Opened File Explorer".into());
+            }
+            "open_folder" => {
+                let p = target_path.as_deref().unwrap_or("desktop");
+                system::open_directory(p);
+                return Ok(format!("Opened folder: {}", p));
+            }
+            "custom_user_slot" => {
+                let p = target_path.as_deref().unwrap_or("https://github.com");
+                system::launch_custom(p);
+                return Ok(format!("Launched custom: {}", p));
             }
             "task_manager" => {
                 system::open_task_manager();
@@ -320,7 +353,9 @@ pub fn run() {
             get_autostart,
             set_shortcut_preference,
             get_shortcut_preference,
-            hide_window
+            hide_window,
+            get_browser_tabs,
+            focus_window
         ])
         .run(tauri::generate_context!())
         .expect("Error while running WinOpie");

@@ -66,6 +66,7 @@ interface RadialMenuProps {
   onSelectChild?: (index: number, node: ActionNode) => void;
   onHoverSlice?: (index: number) => void;
   onHoverTier2?: (index: number | null) => void;
+  onHoverTier3?: (index: number | null) => void;
   onCancel?: () => void;
   onThemeToggle?: () => void;
   onSubAction?: (actionId: string) => void;
@@ -89,7 +90,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   media,
   activeSliceIndex,
   activeTier2Index = null,
-  activeTier3Index: _activeTier3Index = null,
+  activeTier3Index = null,
   isDeadzone,
   scale,
   theme,
@@ -102,6 +103,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   onSelectChild,
   onHoverSlice,
   onHoverTier2,
+  onHoverTier3,
   onCancel,
   onThemeToggle,
   onSubAction,
@@ -283,9 +285,21 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
       ? slices[activeSliceIndex]
       : null;
 
-  const activeLabel =
+  const activeTier2Child =
     activeTier2Index !== null && activeSlice?.children?.[activeTier2Index]
-      ? activeSlice.children[activeTier2Index].label
+      ? activeSlice.children[activeTier2Index]
+      : null;
+
+  const activeTier3Child =
+    activeTier3Index !== null && activeTier2Child?.children?.[activeTier3Index]
+      ? activeTier2Child.children[activeTier3Index]
+      : null;
+
+  const activeLabel =
+    activeTier3Child
+      ? activeTier3Child.label
+      : activeTier2Child
+      ? activeTier2Child.label
       : activeSlice && activeSlice.actionId !== "none"
       ? activeSlice.label
       : null;
@@ -298,7 +312,18 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   const activeSectorAngle =
     activeSliceIndex !== null ? activeSliceIndex * WEDGE_ANGLE : 0;
 
-  const size = 720; // Expanded bounding viewport for multi-tier cascading arcs
+  // Geometric mid-angle for active Tier 2 child to anchor Tier 3 sub-arc
+  const tier2Count = activeSlice?.children?.length ?? 1;
+  const tier2AnglePerItem = Math.min((30 * Math.PI) / 180, (150 * Math.PI) / (180 * Math.max(1, tier2Count)));
+  const tier2TotalSpan = tier2Count * tier2AnglePerItem;
+  const parentMidAngle = (activeSliceIndex ?? 0) * WEDGE_ANGLE;
+  const tier2StartAngle = parentMidAngle - tier2TotalSpan / 2;
+  const tier2ChildMidAngle =
+    activeTier2Index !== null
+      ? tier2StartAngle + activeTier2Index * tier2AnglePerItem + tier2AnglePerItem / 2
+      : parentMidAngle;
+
+  const size = 880; // Bounding viewport accommodating 3-tier fractal sub-arcs
   const half = size / 2;
 
   return (
@@ -619,6 +644,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         })}
 
         {/* 5. Cascading Multi-Tier Outer Radial Arcs (Sub-menus) */}
+        {/* Tier 2 Sub-Arc */}
         {!isDeadzone && activeSlice && activeSlice.children && activeSlice.children.length > 0 && activeSliceIndex !== null && (
           <CascadingSubArc
             parentMidAngle={activeSliceIndex * WEDGE_ANGLE}
@@ -633,6 +659,25 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
             }}
             onHoverChild={(childIdx) => {
               onHoverTier2?.(childIdx);
+            }}
+          />
+        )}
+
+        {/* Tier 3 Sub-Arc */}
+        {!isDeadzone && activeTier2Child && activeTier2Child.children && activeTier2Child.children.length > 0 && (
+          <CascadingSubArc
+            parentMidAngle={tier2ChildMidAngle}
+            items={activeTier2Child.children}
+            innerRadius={R_OUTER + 96}
+            outerRadius={R_OUTER + 176}
+            activeChildIndex={activeTier3Index}
+            theme={theme}
+            tier={3}
+            onSelectChild={(childIdx, childNode) => {
+              onSelectChild?.(childIdx, childNode);
+            }}
+            onHoverChild={(childIdx) => {
+              onHoverTier3?.(childIdx);
             }}
           />
         )}

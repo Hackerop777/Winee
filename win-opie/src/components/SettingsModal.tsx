@@ -31,6 +31,7 @@ export interface SettingsConfig {
   glassMaterial: GlassMaterial;
   themeId: ThemeId;
   customSlots: string[];
+  menuScale?: number;
 }
 
 const DEFAULT_SETTINGS: SettingsConfig = {
@@ -44,8 +45,9 @@ const DEFAULT_SETTINGS: SettingsConfig = {
   damping: 26,
   glassBlur: 36,
   glassMaterial: "liquid",
-  themeId: "crystal",
+  themeId: "cyberpunk",
   customSlots: DEFAULT_WHEEL_SLOTS,
+  menuScale: 1.0,
 };
 
 interface SettingsModalProps {
@@ -332,38 +334,79 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* Visual Glass Theme Selector */}
                 <div className="space-y-1.5 pb-3 border-b border-white/10">
                   <label className="text-xs font-medium text-neutral-200">
-                    Glass Color Tint
+                    Visual Theme & Neon Preset
                   </label>
-                  <div className="grid grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => handleUpdate({ themeId: "cyberpunk" })}
+                      className={`p-2.5 rounded-xl flex items-center space-x-2 text-left border transition-all ${
+                        settings.themeId === "cyberpunk"
+                          ? "bg-purple-950/40 border-cyan-400 text-white shadow-xl shadow-cyan-950/40"
+                          : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#ff2a85] to-[#00e5ff] border border-cyan-300 shadow-[0_0_8px_#00e5ff] shrink-0" />
+                      <div>
+                        <div className="text-[11px] font-semibold text-cyan-200">Cyberpunk RGB</div>
+                        <div className="text-[9px] text-neutral-400">HUD Sci-Fi</div>
+                      </div>
+                    </button>
+
                     <button
                       onClick={() => handleUpdate({ themeId: "crystal" })}
-                      className={`p-3 rounded-xl flex items-center space-x-2.5 text-left border transition-all ${
+                      className={`p-2.5 rounded-xl flex items-center space-x-2 text-left border transition-all ${
                         settings.themeId === "crystal"
                           ? "bg-white/15 border-white text-white shadow-xl shadow-white/10"
                           : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
                       }`}
                     >
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-white/30 to-white/90 border border-white/80 shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-white/30 to-white/90 border border-white/80 shadow-[0_0_8px_rgba(255,255,255,0.4)] shrink-0" />
                       <div>
-                        <div className="text-xs font-semibold">Apple Crystal Glass</div>
-                        <div className="text-[10px] text-neutral-400">Pure Translucent Crystal</div>
+                        <div className="text-[11px] font-semibold">Crystal Glass</div>
+                        <div className="text-[9px] text-neutral-400">Pure Liquid</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleUpdate({ themeId: "titanium" })}
-                      className={`p-3 rounded-xl flex items-center space-x-2.5 text-left border transition-all ${
+                      className={`p-2.5 rounded-xl flex items-center space-x-2 text-left border transition-all ${
                         settings.themeId === "titanium"
                           ? "bg-white/15 border-white text-white shadow-xl shadow-white/10"
                           : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
                       }`}
                     >
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-neutral-900 to-neutral-400 border border-neutral-300/60 shadow-sm" />
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-neutral-900 to-neutral-400 border border-neutral-300/60 shadow-sm shrink-0" />
                       <div>
-                        <div className="text-xs font-semibold">Dark Titanium Smoke</div>
-                        <div className="text-[10px] text-neutral-400">Obsidian Smoked Quartz</div>
+                        <div className="text-[11px] font-semibold">Titanium</div>
+                        <div className="text-[9px] text-neutral-400">Dark Quartz</div>
                       </div>
                     </button>
+                  </div>
+                </div>
+
+                {/* Wheel Size / Scale Slider */}
+                <div className="space-y-2 p-3.5 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white">
+                      Wheel Size / Scale: {Math.round((settings.menuScale || 1.0) * 100)}%
+                    </span>
+                    <span className="text-[11px] font-mono text-sky-400">
+                      {settings.menuScale === 1.0 ? "1.0x (Standard)" : `${(settings.menuScale || 1.0).toFixed(2)}x`}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="75"
+                    max="140"
+                    step="5"
+                    value={Math.round((settings.menuScale || 1.0) * 100)}
+                    onChange={(e) => handleUpdate({ menuScale: Number(e.target.value) / 100 })}
+                    className="w-full accent-sky-400 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-neutral-400 font-mono">
+                    <span>75% (Compact)</span>
+                    <span>100% (Standard)</span>
+                    <span>140% (Enlarged)</span>
                   </div>
                 </div>
 
