@@ -8,7 +8,8 @@ import { usePolarCoords } from "./hooks/usePolarCoords";
 import { useSpringValue } from "./hooks/useSpringPhysics";
 import { sounds } from "./utils/sound";
 import { THEMES } from "./types/theme";
-import { DEFAULT_WHEEL_SLOTS } from "./types/actions";
+import { DEFAULT_WHEEL_SLOTS, ActionNode, DEFAULT_ACTION_TREE } from "./types/actions";
+import { SliceEditorModal } from "./components/SliceEditorModal";
 
 interface ShowPayload {
   origin_x: number;
@@ -85,6 +86,27 @@ export const App: React.FC = () => {
       };
     }
   });
+
+  // Action tree supporting multi-tier cascading radial sub-menus
+  const [actionTree, setActionTree] = useState<ActionNode[]>(() => {
+    try {
+      const stored = localStorage.getItem("winee_action_tree");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return DEFAULT_ACTION_TREE;
+  });
+
+  const [activeTier2Index, setActiveTier2Index] = useState<number | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingNode, setEditingNode] = useState<{ node: ActionNode; parentIndex: number; childIndex?: number } | null>(null);
+
+  const handleSaveActionTree = useCallback((newTree: ActionNode[]) => {
+    setActionTree(newTree);
+    localStorage.setItem("winee_action_tree", JSON.stringify(newTree));
+  }, []);
 
   const currentTheme = THEMES[settings.themeId || "crystal"] || THEMES.crystal;
 
@@ -220,6 +242,81 @@ export const App: React.FC = () => {
     [mode, files, resetCoords, settings.soundEnabled, settings.customSlots, handleClose]
   );
 
+  const handleSelectChild = useCallback(
+    async (_childIdx: number, childNode: ActionNode) => {
+      if (settings.soundEnabled) {
+        sounds.play("button-press.wav", 0.6);
+      }
+      if (childNode.content) {
+        navigator.clipboard.writeText(childNode.content).catch(console.error);
+        handleClose();
+        return;
+      }
+      if (childNode.actionId) {
+        handleSelectSlice(0, childNode.actionId);
+        return;
+      }
+      if (childNode.children && childNode.children.length > 0) {
+        return;
+      }
+      handleClose();
+    },
+    [handleClose, handleSelectSlice, settings.soundEnabled]
+  );
+
+  const handleAddSlice = useCallback(() => {
+    const newNode: ActionNode = {
+      id: `new_${Date.now()}`,
+      label: "New Action",
+      iconName: "Sparkles",
+      type: "action",
+      actionId: "quick_note",
+    };
+    const activeIdx = polar.activeSliceIndex ?? 0;
+    setEditingNode({ node: newNode, parentIndex: activeIdx, childIndex: undefined });
+    setIsEditorOpen(true);
+  }, [polar.activeSliceIndex]);
+
+  const handleEditSlice = useCallback(() => {
+    const activeIdx = polar.activeSliceIndex ?? 0;
+    const node = actionTree[activeIdx] || actionTree[0];
+    if (node) {
+      setEditingNode({ node: { ...node }, parentIndex: activeIdx });
+      setIsEditorOpen(true);
+    }
+  }, [polar.activeSliceIndex, actionTree]);
+
+  const handleDeleteSlice = useCallback(() => {
+    const activeIdx = polar.activeSliceIndex;
+    if (activeIdx !== null && actionTree[activeIdx]) {
+      const updated = actionTree.filter((_, idx) => idx !== activeIdx);
+      if (updated.length > 0) {
+        handleSaveActionTree(updated);
+      }
+    }
+  }, [polar.activeSliceIndex, actionTree, handleSaveActionTree]);
+
+  const handleSaveEditedNode = useCallback(
+    (updated: ActionNode) => {
+      if (!editingNode) return;
+      const newTree = [...actionTree];
+      if (editingNode.childIndex !== undefined) {
+        const parent = newTree[editingNode.parentIndex];
+        if (parent && parent.children) {
+          const newChildren = [...parent.children];
+          newChildren[editingNode.childIndex] = updated;
+          newTree[editingNode.parentIndex] = { ...parent, children: newChildren };
+        }
+      } else if (editingNode.node.id.startsWith("new_")) {
+        newTree.push(updated);
+      } else {
+        newTree[editingNode.parentIndex] = updated;
+      }
+      handleSaveActionTree(newTree);
+    },
+    [editingNode, actionTree, handleSaveActionTree]
+  );
+
   // Listen to Tauri events from Win32 backend
   useEffect(() => {
     const unlistenShow = listen<ShowPayload>("opie-show", (event) => {
@@ -325,23 +422,50 @@ export const App: React.FC = () => {
           files={files}
           media={media}
           activeSliceIndex={polar.activeSliceIndex}
+          activeTier2Index={activeTier2Index}
           isDeadzone={polar.isDeadzone}
           scale={springScale}
           theme={currentTheme}
           glassBlur={settings.glassBlur}
           glassMaterial={settings.glassMaterial}
           customSlots={settings.customSlots}
+          actionTree={actionTree}
           onSelectSlice={handleSelectSlice}
+          onSelectChild={handleSelectChild}
           onHoverSlice={(idx) => {
             if (idx !== polar.activeSliceIndex && settings.soundEnabled) {
               sounds.play("ring-switch.wav", 0.45);
             }
           }}
+          onHoverTier2={(childIdx) => {
+            setActiveTier2Index(childIdx);
+            if (childIdx !== null && settings.soundEnabled) {
+              sounds.play("ring-switch.wav", 0.4);
+            }
+          }}
           onCancel={handleClose}
           onThemeToggle={handleThemeToggle}
           onSubAction={handleSubAction}
+          onAddSlice={handleAddSlice}
+          onEditSlice={handleEditSlice}
+          onDeleteSlice={handleDeleteSlice}
+          onOpenSettings={() => {
+            setIsOpen(false);
+            setIsSettingsOpen(true);
+          }}
         />
       )}
+
+      {/* In-Place Slice / Card Customizer Modal */}
+      <SliceEditorModal
+        node={editingNode?.node || null}
+        isOpen={isEditorOpen}
+        onSave={handleSaveEditedNode}
+        onClose={() => {
+          setIsEditorOpen(false);
+          setEditingNode(null);
+        }}
+      />
 
       {/* Settings Modal */}
       <SettingsModal

@@ -27,13 +27,21 @@ import {
 import { CenterHub, MediaStateProps } from "./CenterHub";
 import { ContextBubbles, SubAction } from "./ContextBubbles";
 import { ThemeConfig } from "../types/theme";
-import { ACTION_CATALOG, DEFAULT_WHEEL_SLOTS } from "../types/actions";
+import {
+  ACTION_CATALOG,
+  DEFAULT_WHEEL_SLOTS,
+  ActionNode,
+  getNodeIcon,
+} from "../types/actions";
+import { CascadingSubArc } from "./CascadingSubArc";
 
 export interface SliceItem {
   id: number;
   actionId?: string;
   label: string;
   icon: LucideIcon;
+  thumbnailUrl?: string;
+  children?: ActionNode[];
   subActions?: SubAction[];
 }
 
@@ -44,18 +52,27 @@ interface RadialMenuProps {
   files?: string[];
   media: MediaStateProps;
   activeSliceIndex: number | null;
+  activeTier2Index?: number | null;
+  activeTier3Index?: number | null;
   isDeadzone: boolean;
   scale: number;
   theme: ThemeConfig;
   glassBlur?: number;
   glassMaterial?: "liquid" | "frosted";
   customSlots?: string[];
+  actionTree?: ActionNode[];
   isMiniPreview?: boolean;
-  onSelectSlice?: (index: number, actionId?: string) => void;
+  onSelectSlice?: (index: number, actionId?: string, node?: ActionNode) => void;
+  onSelectChild?: (index: number, node: ActionNode) => void;
   onHoverSlice?: (index: number) => void;
+  onHoverTier2?: (index: number | null) => void;
   onCancel?: () => void;
   onThemeToggle?: () => void;
   onSubAction?: (actionId: string) => void;
+  onAddSlice?: () => void;
+  onEditSlice?: () => void;
+  onDeleteSlice?: () => void;
+  onOpenSettings?: () => void;
 }
 
 const R_INNER = 66; // px (radius of center hub)
@@ -71,18 +88,27 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   files: _files,
   media,
   activeSliceIndex,
+  activeTier2Index = null,
+  activeTier3Index: _activeTier3Index = null,
   isDeadzone,
   scale,
   theme,
   glassBlur = 36,
   glassMaterial = "liquid",
   customSlots = DEFAULT_WHEEL_SLOTS,
+  actionTree,
   isMiniPreview = false,
   onSelectSlice,
+  onSelectChild,
   onHoverSlice,
+  onHoverTier2,
   onCancel,
   onThemeToggle,
   onSubAction,
+  onAddSlice,
+  onEditSlice,
+  onDeleteSlice,
+  onOpenSettings,
 }) => {
   // Slices configuration based on mode
   const slices: SliceItem[] = useMemo(() => {
@@ -125,7 +151,29 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         { id: 7, label: "Clipboard History", icon: ClipboardList },
       ];
     } else {
-      // User-customized radial wheel actions (fallback to default catalog)
+      // Dynamic Action Tree (supports multi-tier cascading radial sub-menus)
+      if (actionTree && actionTree.length > 0) {
+        return actionTree.map((node, idx) => {
+          let label = node.label;
+          let icon = getNodeIcon(node.iconName, node.type);
+
+          if (node.actionId === "media_play_pause") {
+            label = media.is_playing ? "Pause" : "Play";
+            icon = media.is_playing ? Pause : Play;
+          }
+
+          return {
+            id: idx,
+            actionId: node.actionId,
+            label,
+            icon,
+            thumbnailUrl: node.thumbnailUrl,
+            children: node.children,
+          };
+        });
+      }
+
+      // Fallback to slot actions
       const slots = customSlots && customSlots.length === 8 ? customSlots : DEFAULT_WHEEL_SLOTS;
       return slots.map((actionId, idx) => {
         const item = ACTION_CATALOG[actionId] || ACTION_CATALOG.none;
@@ -161,7 +209,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
         };
       });
     }
-  }, [mode, customSlots, media.is_playing, onSubAction, onThemeToggle]);
+  }, [mode, actionTree, customSlots, media.is_playing, onSubAction, onThemeToggle]);
 
   // Compute organic fluid teardrop outer boundary path with C1 continuity
   const discPath = useMemo(() => {
@@ -248,7 +296,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
   const activeSectorAngle =
     activeSliceIndex !== null ? activeSliceIndex * WEDGE_ANGLE : 0;
 
-  const size = 480; // Bounding viewport
+  const size = 720; // Expanded bounding viewport for multi-tier cascading arcs
   const half = size / 2;
 
   return (
@@ -494,50 +542,101 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
                 />
               )}
 
-              {/* Centered Vector Icon */}
+              {/* Sector Icon or Image Thumbnail */}
               {!isNone && (
-                <foreignObject
-                  x={ix - 18}
-                  y={iy - 18}
-                  width={36}
-                  height={36}
-                  className="pointer-events-none"
-                >
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div
-                      className="transition-all duration-200"
-                      style={{
-                        transform: isActive ? "scale(1.15)" : "scale(1.0)",
-                        color: isActive ? theme.activeIconColor : theme.inactiveIconColor,
-                        filter: isActive
-                          ? "drop-shadow(0 0 12px rgba(255, 255, 255, 0.8)) drop-shadow(0 2px 6px rgba(0,0,0,0.85))"
-                          : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
-                      }}
-                    >
-                      <IconComponent size={22} />
+                slice.thumbnailUrl ? (
+                  <foreignObject
+                    x={ix - 18}
+                    y={iy - 18}
+                    width={36}
+                    height={36}
+                    className="pointer-events-none rounded-lg overflow-hidden border border-white/30 shadow-md"
+                  >
+                    <img
+                      src={slice.thumbnailUrl}
+                      alt={slice.label}
+                      className="w-full h-full object-cover"
+                    />
+                  </foreignObject>
+                ) : (
+                  <foreignObject
+                    x={ix - 18}
+                    y={iy - 18}
+                    width={36}
+                    height={36}
+                    className="pointer-events-none"
+                  >
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div
+                        className="transition-all duration-200"
+                        style={{
+                          transform: isActive ? "scale(1.15)" : "scale(1.0)",
+                          color: isActive ? theme.activeIconColor : theme.inactiveIconColor,
+                          filter: isActive
+                            ? "drop-shadow(0 0 12px rgba(255, 255, 255, 0.8)) drop-shadow(0 2px 6px rgba(0,0,0,0.85))"
+                            : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
+                        }}
+                      >
+                        <IconComponent size={22} />
+                      </div>
                     </div>
-                  </div>
-                </foreignObject>
+                  </foreignObject>
+                )
               )}
 
-              {/* Indicator Dot */}
-              <circle
-                cx={dotX}
-                cy={dotY}
-                r={isNone ? 1.5 : isActive ? 3.0 : 2.0}
-                fill={isActive ? theme.activeDotColor : theme.dotColor}
-                fillOpacity={isNone ? 0.25 : 1}
-                style={{
-                  transition: "all 180ms ease-out",
-                  filter: isActive && !isNone ? "drop-shadow(0 0 6px #ffffff)" : "none",
-                }}
-              />
+              {/* Sub-menu Outward Expansion Indicator Arrow (▶) */}
+              {slice.children && slice.children.length > 0 && (
+                <g
+                  transform={`translate(${dotX}, ${dotY}) rotate(${(midAngle * 180) / Math.PI})`}
+                  className="pointer-events-none opacity-80"
+                >
+                  <polygon
+                    points="-3,-3 5,0 -3,3"
+                    fill={isActive ? theme.activeIconColor : "#ffffff"}
+                    fillOpacity={isActive ? 1 : 0.75}
+                  />
+                </g>
+              )}
+
+              {/* Indicator Dot (if no sub-menu arrow) */}
+              {(!slice.children || slice.children.length === 0) && (
+                <circle
+                  cx={dotX}
+                  cy={dotY}
+                  r={isNone ? 1.5 : isActive ? 3.0 : 2.0}
+                  fill={isActive ? theme.activeDotColor : theme.dotColor}
+                  fillOpacity={isNone ? 0.25 : 1}
+                  style={{
+                    transition: "all 180ms ease-out",
+                    filter: isActive && !isNone ? "drop-shadow(0 0 6px #ffffff)" : "none",
+                  }}
+                />
+              )}
             </g>
           );
         })}
+
+        {/* 5. Cascading Multi-Tier Outer Radial Arcs (Sub-menus) */}
+        {!isDeadzone && activeSlice && activeSlice.children && activeSlice.children.length > 0 && activeSliceIndex !== null && (
+          <CascadingSubArc
+            parentMidAngle={activeSliceIndex * WEDGE_ANGLE}
+            items={activeSlice.children}
+            innerRadius={R_OUTER + 8}
+            outerRadius={R_OUTER + 88}
+            activeChildIndex={activeTier2Index}
+            theme={theme}
+            tier={2}
+            onSelectChild={(childIdx, childNode) => {
+              onSelectChild?.(childIdx, childNode);
+            }}
+            onHoverChild={(childIdx) => {
+              onHoverTier2?.(childIdx);
+            }}
+          />
+        )}
       </svg>
 
-      {/* 5. Center Hub: Large Luminous Ring with Prominent Action Label */}
+      {/* 6. Center Hub: Large Luminous Ring with Quick In-Place Action Buttons */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer pointer-events-auto z-20"
         onClick={(e) => {
@@ -552,6 +651,10 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({
           activeLabel={activeLabel}
           radius={R_INNER}
           theme={theme}
+          onAddSlice={onAddSlice}
+          onEditSlice={onEditSlice}
+          onDeleteSlice={onDeleteSlice}
+          onOpenSettings={onOpenSettings}
         />
       </div>
 

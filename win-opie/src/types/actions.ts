@@ -13,8 +13,25 @@ import {
   Activity,
   Lock,
   MinusCircle,
+  Folder,
+  Layers,
+  Sparkles,
   LucideIcon,
 } from "lucide-react";
+
+export type NodeType = "action" | "submenu" | "clipboard_text" | "clipboard_image" | "folder" | "app";
+
+export interface ActionNode {
+  id: string;
+  label: string;
+  iconName?: string;
+  type?: NodeType;
+  actionId?: string;
+  path?: string;
+  content?: string;
+  thumbnailUrl?: string;
+  children?: ActionNode[];
+}
 
 export interface ActionItem {
   id: string;
@@ -125,6 +142,37 @@ export const ACTION_CATALOG: Record<string, ActionItem> = {
   },
 };
 
+export const ICON_MAP: Record<string, LucideIcon> = {
+  Play,
+  SkipForward,
+  SkipBack,
+  Scissors,
+  FileText,
+  VolumeX,
+  ClipboardList,
+  Settings,
+  Globe,
+  Terminal,
+  FolderOpen,
+  Activity,
+  Lock,
+  MinusCircle,
+  Folder,
+  Layers,
+  Sparkles,
+};
+
+export function getNodeIcon(name?: string, type?: NodeType): LucideIcon {
+  if (name && ICON_MAP[name]) {
+    return ICON_MAP[name];
+  }
+  if (type === "submenu") return Folder;
+  if (type === "folder") return FolderOpen;
+  if (type === "clipboard_text") return FileText;
+  if (type === "clipboard_image") return Sparkles;
+  return Activity;
+}
+
 export const DEFAULT_WHEEL_SLOTS: string[] = [
   "media_play_pause",
   "media_next",
@@ -134,4 +182,61 @@ export const DEFAULT_WHEEL_SLOTS: string[] = [
   "system_mute",
   "clipboard",
   "settings",
+];
+
+export const DEFAULT_ACTION_TREE: ActionNode[] = [
+  {
+    id: "node_media",
+    label: "Media",
+    iconName: "Play",
+    type: "submenu",
+    actionId: "media_play_pause",
+    children: [
+      { id: "m_prev", label: "Prev Track", iconName: "SkipBack", actionId: "media_prev", type: "action" },
+      { id: "m_play", label: "Play / Pause", iconName: "Play", actionId: "media_play_pause", type: "action" },
+      { id: "m_next", label: "Next Track", iconName: "SkipForward", actionId: "media_next", type: "action" },
+      { id: "m_mute", label: "Mute System", iconName: "VolumeX", actionId: "system_mute", type: "action" },
+    ],
+  },
+  {
+    id: "node_tools",
+    label: "Tools",
+    iconName: "Scissors",
+    type: "submenu",
+    actionId: "screen_snip",
+    children: [
+      { id: "t_snip", label: "Screen Snip", iconName: "Scissors", actionId: "screen_snip", type: "action" },
+      { id: "t_note", label: "Quick Note", iconName: "FileText", actionId: "quick_note", type: "action" },
+      { id: "t_clip", label: "Clipboard (Win+V)", iconName: "ClipboardList", actionId: "clipboard", type: "action" },
+    ],
+  },
+  {
+    id: "node_apps",
+    label: "Apps & Dev",
+    iconName: "Terminal",
+    type: "submenu",
+    actionId: "open_terminal",
+    children: [
+      { id: "a_term", label: "Terminal / PS", iconName: "Terminal", actionId: "open_terminal", type: "action" },
+      { id: "a_browser", label: "Web Browser", iconName: "Globe", actionId: "open_browser", type: "action" },
+      { id: "a_exp", label: "File Explorer", iconName: "FolderOpen", actionId: "open_explorer", type: "action" },
+      { id: "a_task", label: "Task Manager", iconName: "Activity", actionId: "task_manager", type: "action" },
+    ],
+  },
+  {
+    id: "node_folders",
+    label: "Folders",
+    iconName: "Folder",
+    type: "submenu",
+    actionId: "open_explorer",
+    children: [
+      { id: "f_desktop", label: "Desktop", iconName: "FolderOpen", actionId: "open_explorer", type: "folder" },
+      { id: "f_downloads", label: "Downloads", iconName: "FolderOpen", actionId: "open_explorer", type: "folder" },
+      { id: "f_projects", label: "Projects", iconName: "FolderOpen", actionId: "open_explorer", type: "folder" },
+    ],
+  },
+  { id: "node_mute", label: "System Mute", iconName: "VolumeX", actionId: "system_mute", type: "action" },
+  { id: "node_snip", label: "Screen Snip", iconName: "Scissors", actionId: "screen_snip", type: "action" },
+  { id: "node_lock", label: "Lock PC", iconName: "Lock", actionId: "lock_pc", type: "action" },
+  { id: "node_settings", label: "Settings", iconName: "Settings", actionId: "settings", type: "action" },
 ];
